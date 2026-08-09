@@ -405,7 +405,7 @@
 
       <div class="row-label" style="margin-bottom:8px;">員工月結彙總</div>
       <table style="margin-bottom:20px;">
-        <thead><tr><th>員工</th><th>出勤天數</th><th>加班時數</th><th>彙總</th></tr></thead>
+        <thead><tr><th>員工</th><th>出勤天數</th><th>遲到時數</th><th>早退時數</th><th>加班時數</th><th>彙總</th></tr></thead>
         <tbody id="empSummaryBody"></tbody>
       </table>
 
@@ -414,7 +414,7 @@
         <table>
           <thead>
             <tr>
-              <th>日期</th><th>員工</th><th>上班</th><th>下班</th><th>出勤</th><th>加班時數<br><span style="font-weight:400;text-transform:none;letter-spacing:0;">(17:00後)</span></th>
+              <th>日期</th><th>員工</th><th>上班</th><th>下班</th><th>出勤</th><th>遲到時數</th><th>早退時數</th><th>加班時數<br><span style="font-weight:400;text-transform:none;letter-spacing:0;">(17:00後)</span></th>
             </tr>
           </thead>
         </table>
@@ -422,7 +422,7 @@
           <table><tbody id="reportBody"></tbody></table>
         </div>
       </div>
-      <div class="note">計算規則：08:00–17:00 為正常出勤，當天只要有完整的上班／下班打卡，就計為 1 天出勤；17:00 之後到下班打卡時間之間的時數計為加班（以小時計算）。員工月結彙總會以「n 天 + 加班 n 小時」的格式呈現，匯出的 CSV 也會包含這個彙總區塊。此資料儲存在雲端共享空間。後台密碼僅作為基本存取控管，資料本身仍儲存在此頁面的共享空間中，並非高強度的安全機制，請勿用於高機敏資料。</div>
+      <div class="note">計算規則：只要當天有完整的上班／下班打卡就計為 1 天出勤。上班打卡晚於 08:00 的部分計為「遲到時數」，下班打卡早於 17:00 的部分計為「早退時數」，17:00 之後到下班打卡時間之間的時數計為「加班時數」，三者分開計算、互不影響。員工月結彙總與每日明細都會列出遲到、早退、加班時數，匯出的 CSV 也會包含完整欄位。此資料儲存在雲端共享空間。後台密碼僅作為基本存取控管，資料本身仍儲存在此頁面的共享空間中，並非高強度的安全機制，請勿用於高機敏資料。</div>
     </div>
   </div>
 
@@ -453,12 +453,35 @@
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2,'0');
 
-  function fmtTime(d){ return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
-  function fmtHM(d){ return pad(d.getHours())+':'+pad(d.getMinutes()); }
-  function fmtDate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  // ---- Asia/Taipei timezone-safe date helpers ----
+  // These read an instant (JS Date / Firestore Timestamp) and express it in
+  // Taiwan local time regardless of what timezone the viewing device is set to.
+  function tpParts(date){
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Taipei', hour12:false,
+      year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', second:'2-digit'
+    });
+    const out = {};
+    fmt.formatToParts(date).forEach(p=>{ if(p.type !== 'literal') out[p.type] = parseInt(p.value,10); });
+    if(out.hour === 24) out.hour = 0; // some browsers report midnight as 24 with hour12:false
+    return out;
+  }
+  function tpMinutesOfDay(date){
+    const p = tpParts(date);
+    return p.hour*60 + p.minute + p.second/60;
+  }
+  function tpYearMonth(date){
+    const p = tpParts(date);
+    return p.year + '-' + pad(p.month);
+  }
 
-  // live clock
-  setInterval(()=>{ $('liveClock').textContent = fmtTime(new Date()); }, 1000);
+  function fmtTime(d){ const p = tpParts(d); return pad(p.hour)+':'+pad(p.minute)+':'+pad(p.second); }
+  function fmtHM(d){ const p = tpParts(d); return pad(p.hour)+':'+pad(p.minute); }
+  function fmtDate(d){ const p = tpParts(d); return p.year+'-'+pad(p.month)+'-'+pad(p.day); }
+
+  // live clock (Taiwan time)
+  setInterval(()=>{ $('liveClock').textContent = fmtTime(new Date()) + '（台灣時間）'; }, 1000);
 
   // ---------- tabs ----------
   document.querySelectorAll('.tab').forEach(t=>{
@@ -481,7 +504,7 @@
       if(employees.length === 0){
         const seed = ['王玟璇', '何冠呈', '高駿傑'];
         for(const n of seed){
-          await db.collection('employees').doc(n).set({ name:n, createdAt:new Date().toISOString() });
+          await db.collection('employees').doc(n).set({ name:n, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
         }
         employees = seed;
       }
@@ -544,7 +567,7 @@
     if(employees.includes(name)){ $('newEmpName').value=''; return; }
     $('addEmpBtn').disabled = true;
     try{
-      await db.collection('employees').doc(name).set({ name, createdAt:new Date().toISOString() });
+      await db.collection('employees').doc(name).set({ name, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       employees.push(name);
       employees.sort((a,b)=>a.localeCompare(b,'zh-Hant'));
       $('newEmpName').value = '';
@@ -636,13 +659,15 @@
     playStamp(type);
 
     try{
-      await db.collection('records').add({
+      const docRef = await db.collection('records').add({
         employee: emp,
         type: type,
-        ts: now.toISOString(),
+        ts: firebase.firestore.FieldValue.serverTimestamp(),
         photo: photo
       });
-      $('statusLine').textContent = `已於 ${fmtHM(now)} 完成${type==='in'?'上班':'下班'}打卡（已拍照存證）`;
+      const saved = await docRef.get();
+      const serverTs = saved.data().ts ? saved.data().ts.toDate() : now;
+      $('statusLine').textContent = `已於 ${fmtHM(serverTs)} 完成${type==='in'?'上班':'下班'}打卡（已拍照存證，時間以伺服器時間為準）`;
     }catch(e){
       console.error(e);
       $('statusLine').textContent = '⚠️ 打卡失敗（無法寫入資料庫），請重試';
@@ -673,12 +698,12 @@
     }
 
     const today = fmtDate(new Date());
-    const todays = records.filter(r => fmtDate(new Date(r.ts)) === today)
-                           .sort((a,b)=> new Date(a.ts)-new Date(b.ts));
+    const todays = records.filter(r => r.ts && fmtDate(r.ts.toDate()) === today)
+                           .sort((a,b)=> a.ts.toDate()-b.ts.toDate());
     if(todays.length === 0){ box.innerHTML = '<div class="empty">今天尚無打卡紀錄</div>'; return; }
 
     box.innerHTML = todays.map(r=>{
-      const t = new Date(r.ts);
+      const t = r.ts.toDate();
       const thumb = r.photo ? `<img class="thumb" src="${r.photo}">` : '';
       return `<div class="rec"><span class="tag ${r.type}">${r.type==='in'?'上班':'下班'}</span><span class="time">${fmtHM(t)}</span>${thumb}</div>`;
     }).join('');
@@ -750,9 +775,9 @@
   let leaveCache = []; // all leave docs, refreshed on demand
 
   (function initCalDate(){
-    const now = new Date();
-    calYear = now.getFullYear();
-    calMonth = now.getMonth();
+    const p = tpParts(new Date());
+    calYear = p.year;
+    calMonth = p.month - 1;
   })();
 
   $('leaveEmpSelect').addEventListener('change', ()=>{
@@ -857,7 +882,7 @@
           return;
         }
         $('leaveStatus').textContent = '處理中…';
-        await db.collection('leaves').doc(docId).set({ employee: emp, date: dateStr, createdAt: new Date().toISOString() });
+        await db.collection('leaves').doc(docId).set({ employee: emp, date: dateStr, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
         $('leaveStatus').textContent = `已為 ${emp} 排休 ${dateStr}（本月已用 ${countThisMonth+1}/${MONTHLY_LEAVE_QUOTA} 天）`;
       }
       renderCalendar();
@@ -963,21 +988,28 @@
   // ---------- report ----------
   function overtimeMinutes(inDate, outDate){
     if(!inDate || !outDate) return 0;
-    const cutoff = new Date(outDate);
-    cutoff.setHours(17,0,0,0);
-    if(outDate <= cutoff) return 0;
-    const start = inDate > cutoff ? inDate : cutoff;
-    return Math.max(0, (outDate - start) / 60000);
+    const outMin = tpMinutesOfDay(outDate);
+    if(outMin <= 17*60) return 0;
+    const inMin = tpMinutesOfDay(inDate);
+    const start = Math.max(inMin, 17*60);
+    return Math.max(0, outMin - start);
   }
   function workMinutes(inDate, outDate){
     if(!inDate || !outDate) return 0;
     return Math.max(0, (outDate - inDate) / 60000);
   }
   function minsToHrs(m){ return (m/60); }
+  function lateMinutes(inDate){
+    if(!inDate) return 0;
+    return Math.max(0, tpMinutesOfDay(inDate) - 8*60);
+  }
+  function earlyLeaveMinutes(outDate){
+    if(!outDate) return 0;
+    return Math.max(0, 17*60 - tpMinutesOfDay(outDate));
+  }
 
   function initMonthField(){
-    const now = new Date();
-    $('repMonth').value = now.getFullYear() + '-' + pad(now.getMonth()+1);
+    $('repMonth').value = tpYearMonth(new Date());
   }
   initMonthField();
   $('repMonth').addEventListener('change', loadReport);
@@ -987,7 +1019,7 @@
 
   async function loadReport(){
     const tbody = $('reportBody');
-    tbody.innerHTML = '<tr><td colspan="6" class="loading">載入中…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="loading">載入中…</td></tr>';
     const monthVal = $('repMonth').value; // YYYY-MM
     const empFilter = $('repEmp').value;
     refreshAdminLeaveList();
@@ -995,16 +1027,16 @@
     let records = [];
     try{
       const snap = await db.collection('records').get();
-      records = snap.docs.map(d => d.data());
+      records = snap.docs.map(d => d.data()).filter(r => r.ts); // skip any not-yet-resolved pending writes
     }catch(e){
       console.error(e);
-      tbody.innerHTML = '<tr><td colspan="6" class="loading">讀取失敗，請確認網路連線與 Firebase 設定</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">讀取失敗，請確認網路連線與 Firebase 設定</td></tr>';
       return;
     }
 
     const filtered = records.filter(r=>{
-      const d = new Date(r.ts);
-      const mv = d.getFullYear()+'-'+pad(d.getMonth()+1);
+      const d = r.ts.toDate();
+      const mv = tpYearMonth(d);
       if(mv !== monthVal) return false;
       if(empFilter && r.employee !== empFilter) return false;
       return true;
@@ -1013,7 +1045,7 @@
     // group by employee|date
     const groups = {};
     filtered.forEach(r=>{
-      const d = new Date(r.ts);
+      const d = r.ts.toDate();
       const dateStr = fmtDate(d);
       const key = r.employee + '|' + dateStr;
       if(!groups[key]) groups[key] = { employee:r.employee, date:dateStr, ins:[], outs:[] };
@@ -1025,20 +1057,29 @@
       const outD = g.outs.length ? new Date(Math.max(...g.outs.map(x=>+x))) : null;
       const wm = workMinutes(inD, outD);
       const om = overtimeMinutes(inD, outD);
-      return { employee:g.employee, date:g.date, inD, outD, workHrs: minsToHrs(wm), otHrs: minsToHrs(om) };
+      const lm = lateMinutes(inD);
+      const em = earlyLeaveMinutes(outD);
+      return {
+        employee:g.employee, date:g.date, inD, outD,
+        workHrs: minsToHrs(wm), otHrs: minsToHrs(om),
+        lateHrs: minsToHrs(lm), earlyHrs: minsToHrs(em),
+        isPresent: !!(inD && outD)
+      };
     }).sort((a,b)=> a.date === b.date ? a.employee.localeCompare(b.employee) : a.date.localeCompare(b.date));
 
     lastReportRows = rows;
 
     if(rows.length === 0){
-      tbody.innerHTML = '<tr><td colspan="6" class="loading">此月份尚無打卡紀錄</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">此月份尚無打卡紀錄</td></tr>';
     }else{
       tbody.innerHTML = rows.map(r=>{
         const inTxt = r.inD ? fmtHM(r.inD) : '<span class="missing">未打卡</span>';
         const outTxt = r.outD ? fmtHM(r.outD) : '<span class="missing">未打卡</span>';
-        const attendTxt = (r.inD && r.outD) ? '1天' : '—';
+        const attendTxt = r.isPresent ? '1天' : '—';
+        const lateTxt = r.lateHrs > 0 ? `<span class="missing">${r.lateHrs.toFixed(2)}</span>` : '0.00';
+        const earlyTxt = r.earlyHrs > 0 ? `<span class="missing">${r.earlyHrs.toFixed(2)}</span>` : '0.00';
         const otTxt = r.otHrs > 0 ? `<span class="ot-val">${r.otHrs.toFixed(2)}</span>` : '0.00';
-        return `<tr><td>${r.date}</td><td class="name">${escapeHtml(r.employee)}</td><td>${inTxt}</td><td>${outTxt}</td><td>${attendTxt}</td><td>${otTxt}</td></tr>`;
+        return `<tr><td>${r.date}</td><td class="name">${escapeHtml(r.employee)}</td><td>${inTxt}</td><td>${outTxt}</td><td>${attendTxt}</td><td>${lateTxt}</td><td>${earlyTxt}</td><td>${otTxt}</td></tr>`;
       }).join('');
     }
 
@@ -1049,32 +1090,38 @@
   function renderEmpSummary(rows){
     const byEmp = {};
     rows.forEach(r=>{
-      if(!byEmp[r.employee]) byEmp[r.employee] = { days:0, ot:0 };
-      if(r.inD && r.outD) byEmp[r.employee].days += 1;
+      if(!byEmp[r.employee]) byEmp[r.employee] = { days:0, ot:0, late:0, early:0 };
+      if(r.isPresent) byEmp[r.employee].days += 1;
       byEmp[r.employee].ot += r.otHrs;
+      byEmp[r.employee].late += r.lateHrs;
+      byEmp[r.employee].early += r.earlyHrs;
     });
     const names = Object.keys(byEmp).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
     const tbody = $('empSummaryBody');
     if(names.length === 0){
-      tbody.innerHTML = '<tr><td colspan="4" class="loading">此月份尚無打卡紀錄</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="loading">此月份尚無打卡紀錄</td></tr>';
       return;
     }
     tbody.innerHTML = names.map(n=>{
       const s = byEmp[n];
       const otTxt = s.ot.toFixed(2);
-      return `<tr><td class="name">${escapeHtml(n)}</td><td>${s.days}</td><td>${otTxt}</td><td style="font-weight:600;">${s.days}天 + 加班${otTxt}小時</td></tr>`;
+      const lateTxt = s.late.toFixed(2);
+      const earlyTxt = s.early.toFixed(2);
+      return `<tr><td class="name">${escapeHtml(n)}</td><td>${s.days}</td><td>${lateTxt}</td><td>${earlyTxt}</td><td>${otTxt}</td><td style="font-weight:600;">${s.days}天 + 加班${otTxt}小時</td></tr>`;
     }).join('');
   }
 
   function renderSummary(rows){
     const totalOT = rows.reduce((s,r)=> s + r.otHrs, 0);
-    const daysCounted = rows.filter(r=>r.inD && r.outD).length;
-    const incomplete = rows.filter(r=> !(r.inD && r.outD)).length;
+    const totalLate = rows.reduce((s,r)=> s + r.lateHrs, 0);
+    const daysCounted = rows.filter(r=>r.isPresent).length;
+    const missing = rows.filter(r=> !r.isPresent).length;
 
     $('summaryStrip').innerHTML = `
       <div class="stat"><div class="n mono">${daysCounted}</div><div class="l">總出勤天數</div></div>
+      <div class="stat"><div class="n mono">${totalLate.toFixed(1)}</div><div class="l">總遲到時數</div></div>
       <div class="stat ot"><div class="n mono">${totalOT.toFixed(1)}</div><div class="l">總加班時數</div></div>
-      <div class="stat"><div class="n mono">${incomplete}</div><div class="l">缺卡天數</div></div>
+      <div class="stat"><div class="n mono">${missing}</div><div class="l">缺卡天數</div></div>
     `;
   }
 
@@ -1083,29 +1130,35 @@
 
     const byEmp = {};
     lastReportRows.forEach(r=>{
-      if(!byEmp[r.employee]) byEmp[r.employee] = { days:0, ot:0 };
-      if(r.inD && r.outD) byEmp[r.employee].days += 1;
+      if(!byEmp[r.employee]) byEmp[r.employee] = { days:0, ot:0, late:0, early:0 };
+      if(r.isPresent) byEmp[r.employee].days += 1;
       byEmp[r.employee].ot += r.otHrs;
+      byEmp[r.employee].late += r.lateHrs;
+      byEmp[r.employee].early += r.earlyHrs;
     });
     const names = Object.keys(byEmp).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
 
     const lines = [];
     lines.push(['員工月結彙總'].map(v=>`"${v}"`).join(','));
-    lines.push(['員工','出勤天數','加班時數','彙總'].map(v=>`"${v}"`).join(','));
+    lines.push(['員工','出勤天數','遲到時數','早退時數','加班時數','彙總'].map(v=>`"${v}"`).join(','));
     names.forEach(n=>{
       const s = byEmp[n];
       const otTxt = s.ot.toFixed(2);
-      lines.push([n, s.days, otTxt, `${s.days}天 + 加班${otTxt}小時`].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+      const lateTxt = s.late.toFixed(2);
+      const earlyTxt = s.early.toFixed(2);
+      lines.push([n, s.days, lateTxt, earlyTxt, otTxt, `${s.days}天 + 加班${otTxt}小時`].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     });
     lines.push('');
     lines.push(['每日明細'].map(v=>`"${v}"`).join(','));
-    lines.push(['日期','員工','上班時間','下班時間','出勤','加班時數(17:00後)'].map(v=>`"${v}"`).join(','));
+    lines.push(['日期','員工','上班時間','下班時間','出勤','遲到時數','早退時數','加班時數(17:00後)'].map(v=>`"${v}"`).join(','));
     lastReportRows.forEach(r=>{
       const inTxt = r.inD ? fmtHM(r.inD) : '未打卡';
       const outTxt = r.outD ? fmtHM(r.outD) : '未打卡';
-      const attendTxt = (r.inD && r.outD) ? '1天' : '';
+      const attendTxt = r.isPresent ? '1天' : '';
+      const lateTxt = r.lateHrs.toFixed(2);
+      const earlyTxt = r.earlyHrs.toFixed(2);
       const otTxt = r.otHrs.toFixed(2);
-      lines.push([r.date, r.employee, inTxt, outTxt, attendTxt, otTxt].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+      lines.push([r.date, r.employee, inTxt, outTxt, attendTxt, lateTxt, earlyTxt, otTxt].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     });
 
     const csv = '\uFEFF' + lines.join('\r\n');
@@ -1210,8 +1263,84 @@
     openReportGate();
   });
 
+  // ---------- auto-delete photos: whole month, purged on the 15th, 2 months later ----------
+  // e.g. all of January's photos are deleted on March 15.
+  function addMonths(year, month, delta){ // month is 1-12
+    let m = (month - 1) + delta;
+    const y = year + Math.floor(m/12);
+    m = ((m % 12) + 12) % 12;
+    return { year: y, month: m+1 };
+  }
+  function dateOnlyUTC(y,m,d){ return new Date(Date.UTC(y, m-1, d)); }
+  function photoDeletionDateFor(yearMonthStr){ // "YYYY-MM" -> Date of the 15th, 2 months later
+    const [y,m] = yearMonthStr.split('-').map(Number);
+    const del = addMonths(y, m, 2);
+    return dateOnlyUTC(del.year, del.month, 15);
+  }
+  // Whole year Y's attendance records are deleted once January of Y+5 arrives.
+  // e.g. all of 2026's records are deleted starting January 2031.
+  function recordDeletionDateFor(year){
+    return dateOnlyUTC(year + 5, 1, 1);
+  }
+
+  // Firestore batches max out at 500 writes; chunk to stay safe at any scale.
+  async function commitInChunks(refs, applyFn){
+    const chunkSize = 450;
+    for(let i=0; i<refs.length; i+=chunkSize){
+      const batch = db.batch();
+      refs.slice(i, i+chunkSize).forEach(ref => applyFn(batch, ref));
+      await batch.commit();
+    }
+  }
+
+  async function cleanupOldPhotos(allDocs, todayOnly){
+    const stale = allDocs.filter(d=>{
+      const data = d.data();
+      if(!data.photo || !data.ts) return false;
+      const recMonth = tpYearMonth(data.ts.toDate());
+      return photoDeletionDateFor(recMonth) <= todayOnly;
+    });
+    if(stale.length === 0) return;
+    await commitInChunks(stale.map(d=>d.ref), (batch,ref)=> batch.update(ref, { photo: firebase.firestore.FieldValue.delete() }));
+    console.log(`已自動清除 ${stale.length} 筆已達刪除日的整月打卡照片`);
+  }
+
+  async function cleanupOldYearRecords(allDocs, todayOnly){
+    const stale = allDocs.filter(d=>{
+      const data = d.data();
+      if(!data.ts) return false;
+      const recYear = tpParts(data.ts.toDate()).year;
+      return recordDeletionDateFor(recYear) <= todayOnly;
+    });
+    if(stale.length === 0) return;
+    await commitInChunks(stale.map(d=>d.ref), (batch,ref)=> batch.delete(ref));
+    console.log(`已自動刪除 ${stale.length} 筆超過保存年限的整年出勤紀錄`);
+  }
+
+  // Runs both cleanup passes together, throttled to once per 24h so normal page loads stay cheap.
+  async function runScheduledCleanup(){
+    try{
+      const metaRef = db.collection('settings').doc('meta');
+      const metaDoc = await metaRef.get();
+      const last = (metaDoc.exists && metaDoc.data().lastCleanup) ? metaDoc.data().lastCleanup.toDate() : null;
+      if(last && (Date.now() - last.getTime()) < 24*60*60*1000) return;
+
+      const todayP = tpParts(new Date());
+      const todayOnly = dateOnlyUTC(todayP.year, todayP.month, todayP.day);
+      const snap = await db.collection('records').get();
+
+      await cleanupOldYearRecords(snap.docs, todayOnly); // delete whole old years first
+      await cleanupOldPhotos(snap.docs, todayOnly);       // then strip photos from remaining old months
+
+      await metaRef.set({ lastCleanup: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true });
+    }catch(e){
+      console.error('排程清理檢查失敗', e);
+    }
+  }
+
   // ---------- init ----------
   loadEmployees().then(()=>{ refreshTodayRecords(); });
+  runScheduledCleanup();
 
 })();
 </script>
