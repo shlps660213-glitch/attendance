@@ -343,6 +343,7 @@
         <div class="label mono" id="calLabel">2026年8月</div>
         <button class="btn" id="calNext">▶</button>
       </div>
+      <div id="leaveQuotaInfo" style="font-size:13px;color:var(--graphite);margin-bottom:10px;"></div>
       <div class="cal-grid" id="calGrid"></div>
       <div class="status-line" id="leaveStatus">點日期格子為目前選擇的員工排休／取消排休，格子上的名字是當天已排休的所有人</div>
     </div>
@@ -402,11 +403,18 @@
 
       <div class="summary-strip" id="summaryStrip"></div>
 
+      <div class="row-label" style="margin-bottom:8px;">員工月結彙總</div>
+      <table style="margin-bottom:20px;">
+        <thead><tr><th>員工</th><th>出勤天數</th><th>加班時數</th><th>彙總</th></tr></thead>
+        <tbody id="empSummaryBody"></tbody>
+      </table>
+
+      <div class="row-label" style="margin-bottom:8px;">每日明細</div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>日期</th><th>員工</th><th>上班</th><th>下班</th><th>工作時數</th><th>加班時數<br><span style="font-weight:400;text-transform:none;letter-spacing:0;">(17:00後)</span></th>
+              <th>日期</th><th>員工</th><th>上班</th><th>下班</th><th>出勤</th><th>加班時數<br><span style="font-weight:400;text-transform:none;letter-spacing:0;">(17:00後)</span></th>
             </tr>
           </thead>
         </table>
@@ -414,7 +422,7 @@
           <table><tbody id="reportBody"></tbody></table>
         </div>
       </div>
-      <div class="note">加班時數計算方式：下班打卡時間超過 17:00 時，取「17:00 與上班時間中較晚者」到下班打卡時間之間的時數，計為加班。此資料儲存在雲端共享空間。後台密碼僅作為基本存取控管，資料本身仍儲存在此頁面的共享空間中，並非高強度的安全機制，請勿用於高機敏資料。</div>
+      <div class="note">計算規則：08:00–17:00 為正常出勤，當天只要有完整的上班／下班打卡，就計為 1 天出勤；17:00 之後到下班打卡時間之間的時數計為加班（以小時計算）。員工月結彙總會以「n 天 + 加班 n 小時」的格式呈現，匯出的 CSV 也會包含這個彙總區塊。此資料儲存在雲端共享空間。後台密碼僅作為基本存取控管，資料本身仍儲存在此頁面的共享空間中，並非高強度的安全機制，請勿用於高機敏資料。</div>
     </div>
   </div>
 
@@ -737,6 +745,7 @@
 
   // ---------- leave / day-off scheduling (calendar) ----------
   const WD = ['日','一','二','三','四','五','六'];
+  const MONTHLY_LEAVE_QUOTA = 4;
   let calYear, calMonth; // calMonth 0-indexed
   let leaveCache = []; // all leave docs, refreshed on demand
 
@@ -796,6 +805,17 @@
     const todayStr = fmtDate(new Date());
     const me = $('leaveEmpSelect').value;
 
+    const myCountThisMonth = leaves.filter(r => r.date.slice(0,7) === monthStr && r.employee === me).length;
+    const quotaBox = $('leaveQuotaInfo');
+    if(me){
+      const remaining = MONTHLY_LEAVE_QUOTA - myCountThisMonth;
+      quotaBox.innerHTML = remaining > 0
+        ? `${escapeHtml(me)} 本月已排休 <strong>${myCountThisMonth}/${MONTHLY_LEAVE_QUOTA}</strong> 天，還可以排 ${remaining} 天`
+        : `<span style="color:var(--red-deep);font-weight:600;">${escapeHtml(me)} 本月排休已達上限（${MONTHLY_LEAVE_QUOTA}/${MONTHLY_LEAVE_QUOTA} 天）</span>`;
+    }else{
+      quotaBox.textContent = `每人每月最多可排休 ${MONTHLY_LEAVE_QUOTA} 天`;
+    }
+
     let html = '';
     for(let i=0;i<firstDow;i++) html += '<div class="cal-day empty"></div>';
     for(let d=1; d<=daysInMonth; d++){
@@ -830,9 +850,15 @@
         await db.collection('leaves').doc(docId).delete();
         $('leaveStatus').textContent = `已取消 ${emp} 在 ${dateStr} 的排休`;
       }else{
+        const monthStr = dateStr.slice(0,7);
+        const countThisMonth = (leaveCache || []).filter(r => r.employee === emp && r.date.slice(0,7) === monthStr).length;
+        if(countThisMonth >= MONTHLY_LEAVE_QUOTA){
+          $('leaveStatus').textContent = `⚠️ ${emp} 本月排休已達上限（${MONTHLY_LEAVE_QUOTA} 天），無法再新增`;
+          return;
+        }
         $('leaveStatus').textContent = '處理中…';
         await db.collection('leaves').doc(docId).set({ employee: emp, date: dateStr, createdAt: new Date().toISOString() });
-        $('leaveStatus').textContent = `已為 ${emp} 排休 ${dateStr}`;
+        $('leaveStatus').textContent = `已為 ${emp} 排休 ${dateStr}（本月已用 ${countThisMonth+1}/${MONTHLY_LEAVE_QUOTA} 天）`;
       }
       renderCalendar();
       refreshMyLeaves();
@@ -1010,40 +1036,78 @@
       tbody.innerHTML = rows.map(r=>{
         const inTxt = r.inD ? fmtHM(r.inD) : '<span class="missing">未打卡</span>';
         const outTxt = r.outD ? fmtHM(r.outD) : '<span class="missing">未打卡</span>';
-        const workTxt = (r.inD && r.outD) ? r.workHrs.toFixed(2) : '—';
+        const attendTxt = (r.inD && r.outD) ? '1天' : '—';
         const otTxt = r.otHrs > 0 ? `<span class="ot-val">${r.otHrs.toFixed(2)}</span>` : '0.00';
-        return `<tr><td>${r.date}</td><td class="name">${escapeHtml(r.employee)}</td><td>${inTxt}</td><td>${outTxt}</td><td>${workTxt}</td><td>${otTxt}</td></tr>`;
+        return `<tr><td>${r.date}</td><td class="name">${escapeHtml(r.employee)}</td><td>${inTxt}</td><td>${outTxt}</td><td>${attendTxt}</td><td>${otTxt}</td></tr>`;
       }).join('');
     }
 
+    renderEmpSummary(rows);
     renderSummary(rows);
   }
 
+  function renderEmpSummary(rows){
+    const byEmp = {};
+    rows.forEach(r=>{
+      if(!byEmp[r.employee]) byEmp[r.employee] = { days:0, ot:0 };
+      if(r.inD && r.outD) byEmp[r.employee].days += 1;
+      byEmp[r.employee].ot += r.otHrs;
+    });
+    const names = Object.keys(byEmp).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+    const tbody = $('empSummaryBody');
+    if(names.length === 0){
+      tbody.innerHTML = '<tr><td colspan="4" class="loading">此月份尚無打卡紀錄</td></tr>';
+      return;
+    }
+    tbody.innerHTML = names.map(n=>{
+      const s = byEmp[n];
+      const otTxt = s.ot.toFixed(2);
+      return `<tr><td class="name">${escapeHtml(n)}</td><td>${s.days}</td><td>${otTxt}</td><td style="font-weight:600;">${s.days}天 + 加班${otTxt}小時</td></tr>`;
+    }).join('');
+  }
+
   function renderSummary(rows){
-    const totalWork = rows.reduce((s,r)=> s + (r.inD && r.outD ? r.workHrs : 0), 0);
     const totalOT = rows.reduce((s,r)=> s + r.otHrs, 0);
     const daysCounted = rows.filter(r=>r.inD && r.outD).length;
     const incomplete = rows.filter(r=> !(r.inD && r.outD)).length;
 
     $('summaryStrip').innerHTML = `
-      <div class="stat"><div class="n mono">${totalWork.toFixed(1)}</div><div class="l">總工作時數</div></div>
+      <div class="stat"><div class="n mono">${daysCounted}</div><div class="l">總出勤天數</div></div>
       <div class="stat ot"><div class="n mono">${totalOT.toFixed(1)}</div><div class="l">總加班時數</div></div>
-      <div class="stat"><div class="n mono">${daysCounted}</div><div class="l">完整出勤天數</div></div>
       <div class="stat"><div class="n mono">${incomplete}</div><div class="l">缺卡天數</div></div>
     `;
   }
 
   $('exportBtn').addEventListener('click', ()=>{
     if(lastReportRows.length === 0){ alert('目前沒有可匯出的資料'); return; }
-    const header = ['日期','員工','上班時間','下班時間','工作時數','加班時數(17:00後)'];
-    const lines = [header.join(',')];
+
+    const byEmp = {};
+    lastReportRows.forEach(r=>{
+      if(!byEmp[r.employee]) byEmp[r.employee] = { days:0, ot:0 };
+      if(r.inD && r.outD) byEmp[r.employee].days += 1;
+      byEmp[r.employee].ot += r.otHrs;
+    });
+    const names = Object.keys(byEmp).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+
+    const lines = [];
+    lines.push(['員工月結彙總'].map(v=>`"${v}"`).join(','));
+    lines.push(['員工','出勤天數','加班時數','彙總'].map(v=>`"${v}"`).join(','));
+    names.forEach(n=>{
+      const s = byEmp[n];
+      const otTxt = s.ot.toFixed(2);
+      lines.push([n, s.days, otTxt, `${s.days}天 + 加班${otTxt}小時`].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+    });
+    lines.push('');
+    lines.push(['每日明細'].map(v=>`"${v}"`).join(','));
+    lines.push(['日期','員工','上班時間','下班時間','出勤','加班時數(17:00後)'].map(v=>`"${v}"`).join(','));
     lastReportRows.forEach(r=>{
       const inTxt = r.inD ? fmtHM(r.inD) : '未打卡';
       const outTxt = r.outD ? fmtHM(r.outD) : '未打卡';
-      const workTxt = (r.inD && r.outD) ? r.workHrs.toFixed(2) : '';
+      const attendTxt = (r.inD && r.outD) ? '1天' : '';
       const otTxt = r.otHrs.toFixed(2);
-      lines.push([r.date, r.employee, inTxt, outTxt, workTxt, otTxt].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+      lines.push([r.date, r.employee, inTxt, outTxt, attendTxt, otTxt].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     });
+
     const csv = '\uFEFF' + lines.join('\r\n');
     const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
