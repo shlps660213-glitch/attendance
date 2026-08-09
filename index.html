@@ -84,11 +84,12 @@
     margin-bottom:6px;font-weight:600;
   }
 
-  select, input[type=text], input[type=month], input[type=date], input[type=password]{
+  select, input[type=text], input[type=month], input[type=date], input[type=password], textarea{
     font-family:'Noto Sans TC',sans-serif;font-size:15px;padding:9px 10px;
     border:1.5px solid var(--ink); background:#fff; color:var(--ink);width:100%;
   }
-  select:focus, input:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  textarea{resize:vertical;line-height:1.6;}
+  select:focus, input:focus, textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
 
   .employee-row{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
   .employee-row select{flex:1;min-width:160px;}
@@ -294,6 +295,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="punch">打卡</div>
     <div class="tab" data-tab="leave">排休</div>
+    <div class="tab" data-tab="suggestion">意見箱</div>
     <div class="tab" data-tab="report">後台管理</div>
   </div>
 
@@ -354,6 +356,22 @@
     </div>
   </div>
 
+  <!-- SUGGESTION BOX PANEL -->
+  <div class="panel" id="panel-suggestion">
+    <div class="timecard">
+      <div class="perf">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="row-label">員工意見箱（匿名）</div>
+      <p style="font-size:13px;color:var(--graphite);margin:0 0 14px;line-height:1.6;">送出的意見完全匿名，系統不會記錄是哪位員工送出的，也不需要選擇身份。管理者只看得到內容和送出時間。</p>
+      <textarea id="suggestionText" rows="6" placeholder="想反映的事情、建議、抱怨都可以寫在這裡…" maxlength="1000"></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <button class="btn primary" id="submitSuggestionBtn">送出（匿名）</button>
+      </div>
+      <div class="status-line" id="suggestionStatus"></div>
+    </div>
+  </div>
+
   <!-- REPORT PANEL -->
   <div class="panel" id="panel-report">
 
@@ -386,6 +404,12 @@
         <div class="row-label">排休管理</div>
         <p style="font-size:12px;color:var(--graphite);margin:0 0 10px;line-height:1.6;">顯示下方所選月份的排休紀錄，管理者可直接刪除，不需要員工本人的取消密碼。</p>
         <div id="adminLeaveList"><div class="empty">載入中…</div></div>
+      </div>
+
+      <div class="timecard" style="margin-bottom:20px;">
+        <div class="row-label">員工意見箱</div>
+        <p style="font-size:12px;color:var(--graphite);margin:0 0 10px;line-height:1.6;">完全匿名，看不到是哪位員工送出的。</p>
+        <div id="suggestionList"><div class="empty">載入中…</div></div>
       </div>
 
       <div class="row-label" style="margin-bottom:10px;">月報表</div>
@@ -985,6 +1009,64 @@
     });
   }
 
+  // ---------- anonymous suggestion box ----------
+  $('submitSuggestionBtn').addEventListener('click', async ()=>{
+    const text = $('suggestionText').value.trim();
+    if(!text){ $('suggestionStatus').textContent = '請先輸入內容'; return; }
+    $('submitSuggestionBtn').disabled = true;
+    $('suggestionStatus').textContent = '送出中…';
+    try{
+      await db.collection('suggestions').add({
+        message: text,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      $('suggestionText').value = '';
+      $('suggestionStatus').textContent = '已匿名送出，謝謝你的意見！';
+    }catch(e){
+      console.error(e);
+      $('suggestionStatus').textContent = '⚠️ 送出失敗，請確認網路連線';
+    }
+    $('submitSuggestionBtn').disabled = false;
+  });
+
+  async function refreshSuggestionList(){
+    const box = $('suggestionList');
+    if(!box) return;
+    box.innerHTML = '<div class="empty">載入中…</div>';
+    try{
+      const snap = await db.collection('suggestions').get();
+      const docs = snap.docs.map(d => ({ id:d.id, ...d.data() })).filter(d => d.createdAt);
+      docs.sort((a,b) => b.createdAt.toDate() - a.createdAt.toDate());
+      if(docs.length === 0){ box.innerHTML = '<div class="empty">目前沒有意見</div>'; return; }
+      box.innerHTML = docs.map(d=>{
+        const t = d.createdAt.toDate();
+        const timeStr = fmtDate(t) + ' ' + fmtHM(t);
+        return `<div class="leave-entry" style="align-items:flex-start;flex-direction:column;gap:6px;">
+          <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+            <span class="date">${timeStr}</span>
+            <button class="del" data-id="${d.id}">刪除</button>
+          </div>
+          <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;">${escapeHtml(d.message)}</div>
+        </div>`;
+      }).join('');
+      box.querySelectorAll('.del').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          if(!confirm('確定要刪除這則意見嗎？')) return;
+          try{
+            await db.collection('suggestions').doc(btn.dataset.id).delete();
+            refreshSuggestionList();
+          }catch(e){
+            console.error(e);
+            alert('刪除失敗，請確認網路連線');
+          }
+        });
+      });
+    }catch(e){
+      console.error(e);
+      box.innerHTML = '<div class="empty">讀取失敗，請確認網路連線</div>';
+    }
+  }
+
   // ---------- report ----------
   function overtimeMinutes(inDate, outDate){
     if(!inDate || !outDate) return 0;
@@ -1023,6 +1105,7 @@
     const monthVal = $('repMonth').value; // YYYY-MM
     const empFilter = $('repEmp').value;
     refreshAdminLeaveList();
+    refreshSuggestionList();
 
     let records = [];
     try{
