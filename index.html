@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>冠通工程行 打卡系統</title>
+<title>冠通工程行</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -287,14 +287,14 @@
   </div>
 
   <div class="masthead">
-    <h1>⏱ 冠通工程行 打卡系統</h1>
+    <h1>⏱ 冠通工程行</h1>
     <div class="clock mono" id="liveClock">--:--:--</div>
   </div>
 
   <div class="tabs">
     <div class="tab active" data-tab="punch">打卡</div>
     <div class="tab" data-tab="leave">排休</div>
-    <div class="tab" data-tab="report">月報表</div>
+    <div class="tab" data-tab="report">後台管理</div>
   </div>
 
   <!-- PUNCH PANEL -->
@@ -307,12 +307,7 @@
       <div class="row-label">員工</div>
       <div class="employee-row">
         <select id="empSelect"><option value="">— 請選擇員工 —</option></select>
-        <div class="newemp">
-          <input type="text" id="newEmpName" placeholder="新增員工姓名">
-          <button class="btn" id="addEmpBtn">新增</button>
-        </div>
       </div>
-      <div id="empManageList" style="display:flex;flex-wrap:wrap;gap:6px;margin:-8px 0 16px;"></div>
 
       <div class="cam-wrap" id="camWrap">
         <video id="video" autoplay playsinline muted></video>
@@ -374,8 +369,25 @@
 
     <div id="reportContent" style="display:none;">
       <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-        <button class="btn" id="lockBtn">🔒 鎖定報表</button>
+        <button class="btn" id="lockBtn">🔒 鎖定後台</button>
       </div>
+
+      <div class="timecard" style="margin-bottom:20px;">
+        <div class="row-label">員工管理</div>
+        <div class="newemp" style="max-width:380px;margin-bottom:14px;">
+          <input type="text" id="newEmpName" placeholder="新增員工姓名">
+          <button class="btn primary" id="addEmpBtn">新增</button>
+        </div>
+        <div id="empManageList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+
+      <div class="timecard" style="margin-bottom:20px;">
+        <div class="row-label">排休管理</div>
+        <p style="font-size:12px;color:var(--graphite);margin:0 0 10px;line-height:1.6;">顯示下方所選月份的排休紀錄，管理者可直接刪除，不需要員工本人的取消密碼。</p>
+        <div id="adminLeaveList"><div class="empty">載入中…</div></div>
+      </div>
+
+      <div class="row-label" style="margin-bottom:10px;">月報表</div>
       <div class="report-controls">
         <div class="field">
           <label for="repMonth">月份</label>
@@ -402,7 +414,7 @@
           <table><tbody id="reportBody"></tbody></table>
         </div>
       </div>
-      <div class="note">加班時數計算方式：下班打卡時間超過 17:00 時，取「17:00 與上班時間中較晚者」到下班打卡時間之間的時數，計為加班。此資料儲存在雲端共享空間。報表密碼僅作為基本存取控管，資料本身仍儲存在此頁面的共享空間中，並非高強度的安全機制，請勿用於高機敏資料。</div>
+      <div class="note">加班時數計算方式：下班打卡時間超過 17:00 時，取「17:00 與上班時間中較晚者」到下班打卡時間之間的時數，計為加班。此資料儲存在雲端共享空間。後台密碼僅作為基本存取控管，資料本身仍儲存在此頁面的共享空間中，並非高強度的安全機制，請勿用於高機敏資料。</div>
     </div>
   </div>
 
@@ -875,6 +887,53 @@
     }
   }
 
+  async function refreshAdminLeaveList(){
+    const box = $('adminLeaveList');
+    if(!box) return;
+    box.innerHTML = '<div class="empty">載入中…</div>';
+    const monthVal = $('repMonth').value;
+    let docs = [];
+    try{
+      const snap = await db.collection('leaves').get();
+      docs = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    }catch(e){
+      console.error(e);
+      box.innerHTML = '<div class="empty">讀取失敗，請確認網路連線</div>';
+      return;
+    }
+    const filtered = docs.filter(r => r.date.slice(0,7) === monthVal).sort((a,b)=> a.date.localeCompare(b.date));
+    if(filtered.length === 0){ box.innerHTML = '<div class="empty">這個月尚無排休紀錄</div>'; return; }
+
+    const byDate = {};
+    filtered.forEach(r=>{
+      if(!byDate[r.date]) byDate[r.date] = [];
+      byDate[r.date].push(r);
+    });
+    box.innerHTML = Object.keys(byDate).sort().map(date=>{
+      const wd = WD[new Date(date+'T00:00:00').getDay()];
+      const chips = byDate[date].map(r=>
+        `<span class="emp-chip">${escapeHtml(r.employee)}<button data-id="${r.id}" title="刪除這筆排休">×</button></span>`
+      ).join('');
+      return `<div class="overview-group">
+        <div class="overview-date"><span class="d">${date}</span><span class="w">星期${wd}</span></div>
+        <div class="overview-chips">${chips}</div>
+      </div>`;
+    }).join('');
+
+    box.querySelectorAll('.emp-chip button').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        if(!confirm('確定要刪除這筆排休紀錄嗎？（管理者刪除不需要員工的取消密碼）')) return;
+        try{
+          await db.collection('leaves').doc(btn.dataset.id).delete();
+          refreshAdminLeaveList();
+        }catch(e){
+          console.error(e);
+          alert('刪除失敗，請確認網路連線');
+        }
+      });
+    });
+  }
+
   // ---------- report ----------
   function overtimeMinutes(inDate, outDate){
     if(!inDate || !outDate) return 0;
@@ -905,6 +964,7 @@
     tbody.innerHTML = '<tr><td colspan="6" class="loading">載入中…</td></tr>';
     const monthVal = $('repMonth').value; // YYYY-MM
     const empFilter = $('repEmp').value;
+    refreshAdminLeaveList();
 
     let records = [];
     try{
@@ -1025,12 +1085,12 @@
 
     if(!stored){
       gateMode = 'set';
-      $('gateMsg').textContent = '第一次使用報表功能，請設定管理者密碼。之後每次查看報表都需要輸入此密碼。';
+      $('gateMsg').textContent = '第一次使用後台功能，請設定管理者密碼。之後每次進入後台（員工管理、報表）都需要輸入此密碼。';
       $('gatePwConfirm').style.display = 'block';
       $('gateSubmit').textContent = '設定密碼並解鎖';
     }else{
       gateMode = 'enter';
-      $('gateMsg').textContent = '報表僅限管理者查看，請輸入管理者密碼。';
+      $('gateMsg').textContent = '此頁面僅限管理者使用，請輸入管理者密碼。';
       $('gatePwConfirm').style.display = 'none';
       $('gateSubmit').textContent = '解鎖';
     }
