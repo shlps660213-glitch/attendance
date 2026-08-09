@@ -185,6 +185,31 @@
     background:#eef5f2;
   }
 
+  /* ---- Leave calendar ---- */
+  .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .cal-nav button{background:var(--card);border:2px solid var(--ink);padding:6px 14px;font-weight:700;cursor:pointer;}
+  .cal-nav button:hover{background:#efe9d9;}
+  .cal-nav .label{font-weight:700;font-size:16px;letter-spacing:0.03em;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-wd{text-align:center;font-size:11px;color:var(--graphite);text-transform:uppercase;letter-spacing:0.06em;padding-bottom:6px;font-weight:600;}
+  .cal-day{
+    min-height:76px;border:1.5px solid var(--rule);background:#fff;padding:5px 5px 4px;
+    cursor:pointer;position:relative;transition:border-color .12s ease, background .12s ease;
+  }
+  .cal-day:hover{border-color:var(--ink);}
+  .cal-day.empty{border:none;cursor:default;background:transparent;}
+  .cal-day .num{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--graphite);}
+  .cal-day.today{box-shadow: inset 0 0 0 1.5px var(--ink);}
+  .cal-day.today .num{color:var(--ink);font-weight:800;}
+  .cal-day.mine{border-color:var(--teal-deep);background:#eef5f2;}
+  .cal-day .chiplist{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+  .cal-chip{font-size:9.5px;padding:1px 5px;background:var(--paper);border:1px solid var(--rule);color:var(--ink);white-space:nowrap;}
+  .cal-chip.self{background:var(--teal-deep);color:#fff;border-color:var(--teal-deep);}
+  @media (max-width:520px){
+    .cal-day{min-height:58px;padding:3px 3px 2px;}
+    .cal-chip{font-size:8.5px;padding:1px 3px;}
+  }
+
   /* ---- Report ---- */
   .report-controls{
     display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;
@@ -294,30 +319,18 @@
       <div class="row-label">員工</div>
       <select id="leaveEmpSelect" style="margin-bottom:16px;"><option value="">— 請選擇員工 —</option></select>
 
-      <div class="leave-form">
-        <div class="field">
-          <label for="leaveDateInput">休假日期</label>
-          <input type="date" id="leaveDateInput">
-        </div>
-        <button class="btn primary" id="addLeaveBtn">➕ 排休</button>
+      <div class="cal-nav">
+        <button class="btn" id="calPrev">◀</button>
+        <div class="label mono" id="calLabel">2026年8月</div>
+        <button class="btn" id="calNext">▶</button>
       </div>
-      <div class="status-line" id="leaveStatus"></div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="status-line" id="leaveStatus">點日期格子為目前選擇的員工排休／取消排休，格子上的名字是當天已排休的所有人</div>
     </div>
 
     <div class="timecard">
       <h3 id="myLeaveTitle" style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--graphite);margin:0 0 8px;">我的休假</h3>
       <div id="myLeaveList"><div class="empty">請先選擇員工</div></div>
-    </div>
-
-    <div class="timecard">
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
-        <h3 style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--graphite);margin:0;">全體排休總覽</h3>
-        <div class="field" style="min-width:150px;">
-          <label for="leaveOverviewMonth">月份</label>
-          <input type="month" id="leaveOverviewMonth">
-        </div>
-      </div>
-      <div id="leaveOverview"><div class="empty">載入中…</div></div>
     </div>
   </div>
 
@@ -411,7 +424,7 @@
       t.classList.add('active');
       $('panel-'+t.dataset.tab).classList.add('active');
       if(t.dataset.tab === 'report') openReportGate();
-      if(t.dataset.tab === 'leave'){ refreshMyLeaves(); refreshLeaveOverview(); }
+      if(t.dataset.tab === 'leave'){ refreshMyLeaves(); renderCalendar(); }
     });
   });
 
@@ -600,47 +613,109 @@
     }).join('');
   }
 
-  // ---------- leave / day-off scheduling ----------
+  // ---------- leave / day-off scheduling (calendar) ----------
   const WD = ['日','一','二','三','四','五','六'];
+  let calYear, calMonth; // calMonth 0-indexed
+  let leaveCache = []; // all leave docs, refreshed on demand
 
-  function initLeaveDateDefault(){
+  (function initCalDate(){
     const now = new Date();
-    $('leaveDateInput').value = fmtDate(now);
-    $('leaveOverviewMonth').value = now.getFullYear() + '-' + pad(now.getMonth()+1);
-  }
-  initLeaveDateDefault();
+    calYear = now.getFullYear();
+    calMonth = now.getMonth();
+  })();
 
   $('leaveEmpSelect').addEventListener('change', ()=>{
     if($('leaveEmpSelect').value) $('empSelect').value = $('leaveEmpSelect').value;
-    $('addLeaveBtn').disabled = !$('leaveEmpSelect').value;
     refreshMyLeaves();
+    renderCalendar();
   });
 
-  $('addLeaveBtn').addEventListener('click', async ()=>{
-    const emp = $('leaveEmpSelect').value;
-    const date = $('leaveDateInput').value;
-    if(!emp){ $('leaveStatus').textContent = '請先選擇員工'; return; }
-    if(!date){ $('leaveStatus').textContent = '請選擇日期'; return; }
+  $('calPrev').addEventListener('click', ()=>{
+    calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; }
+    renderCalendar();
+  });
+  $('calNext').addEventListener('click', ()=>{
+    calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; }
+    renderCalendar();
+  });
 
-    $('addLeaveBtn').disabled = true;
+  async function fetchAllLeaves(){
+    try{
+      const snap = await db.collection('leaves').get();
+      leaveCache = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    }catch(e){
+      console.error(e);
+      leaveCache = null; // signal error
+    }
+    return leaveCache;
+  }
+
+  async function renderCalendar(){
+    $('calLabel').textContent = `${calYear}年${calMonth+1}月`;
+    const grid = $('calGrid');
+    grid.innerHTML = WD.map(w=>`<div class="cal-wd">${w}</div>`).join('');
+
+    const leaves = await fetchAllLeaves();
+    if(leaves === null){
+      grid.innerHTML += '<div class="empty" style="grid-column:1/-1;">讀取失敗，請確認網路連線</div>';
+      return;
+    }
+
+    const monthStr = calYear + '-' + pad(calMonth+1);
+    const byDate = {};
+    leaves.forEach(r=>{
+      if(r.date.slice(0,7) !== monthStr) return;
+      if(!byDate[r.date]) byDate[r.date] = [];
+      byDate[r.date].push(r.employee);
+    });
+
+    const firstDow = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+    const todayStr = fmtDate(new Date());
+    const me = $('leaveEmpSelect').value;
+
+    let html = '';
+    for(let i=0;i<firstDow;i++) html += '<div class="cal-day empty"></div>';
+    for(let d=1; d<=daysInMonth; d++){
+      const dateStr = calYear + '-' + pad(calMonth+1) + '-' + pad(d);
+      const names = byDate[dateStr] || [];
+      const isToday = dateStr === todayStr;
+      const isMine = me && names.includes(me);
+      const chips = names.map(n => `<span class="cal-chip${n===me?' self':''}">${escapeHtml(n)}</span>`).join('');
+      html += `<div class="cal-day${isToday?' today':''}${isMine?' mine':''}" data-date="${dateStr}">
+        <div class="num">${d}</div>
+        <div class="chiplist">${chips}</div>
+      </div>`;
+    }
+    grid.innerHTML += html;
+
+    grid.querySelectorAll('.cal-day[data-date]').forEach(cell=>{
+      cell.addEventListener('click', ()=> toggleLeave(cell.dataset.date));
+    });
+  }
+
+  async function toggleLeave(dateStr){
+    const emp = $('leaveEmpSelect').value;
+    if(!emp){ $('leaveStatus').textContent = '⚠️ 請先選擇員工，再點日期排休'; return; }
+
+    const docId = emp + '__' + dateStr;
     $('leaveStatus').textContent = '處理中…';
-    const docId = emp + '__' + date;
     try{
       const existing = await db.collection('leaves').doc(docId).get();
       if(existing.exists){
-        $('leaveStatus').textContent = `${emp} 在 ${date} 已經排休過了`;
+        await db.collection('leaves').doc(docId).delete();
+        $('leaveStatus').textContent = `已取消 ${emp} 在 ${dateStr} 的排休`;
       }else{
-        await db.collection('leaves').doc(docId).set({ employee: emp, date, createdAt: new Date().toISOString() });
-        $('leaveStatus').textContent = `已為 ${emp} 排休 ${date}`;
-        refreshMyLeaves();
-        refreshLeaveOverview();
+        await db.collection('leaves').doc(docId).set({ employee: emp, date: dateStr, createdAt: new Date().toISOString() });
+        $('leaveStatus').textContent = `已為 ${emp} 排休 ${dateStr}`;
       }
+      renderCalendar();
+      refreshMyLeaves();
     }catch(e){
       console.error(e);
-      $('leaveStatus').textContent = '⚠️ 排休失敗，請確認網路連線';
+      $('leaveStatus').textContent = '⚠️ 操作失敗，請確認網路連線';
     }
-    $('addLeaveBtn').disabled = false;
-  });
+  }
 
   async function refreshMyLeaves(){
     const emp = $('leaveEmpSelect').value;
@@ -677,44 +752,11 @@
     try{
       await db.collection('leaves').doc(id).delete();
       refreshMyLeaves();
-      refreshLeaveOverview();
+      renderCalendar();
     }catch(e){
       console.error(e);
       alert('取消排休失敗，請確認網路連線');
     }
-  }
-
-  $('leaveOverviewMonth').addEventListener('change', refreshLeaveOverview);
-
-  async function refreshLeaveOverview(){
-    const box = $('leaveOverview');
-    box.innerHTML = '<div class="empty">載入中…</div>';
-    const monthVal = $('leaveOverviewMonth').value;
-    let docs = [];
-    try{
-      const snap = await db.collection('leaves').get();
-      docs = snap.docs.map(d=>d.data());
-    }catch(e){
-      console.error(e);
-      box.innerHTML = '<div class="empty">讀取失敗，請確認網路連線</div>';
-      return;
-    }
-    const filtered = docs.filter(r => r.date.slice(0,7) === monthVal).sort((a,b)=> a.date.localeCompare(b.date));
-    if(filtered.length === 0){ box.innerHTML = '<div class="empty">這個月尚無人排休</div>'; return; }
-
-    const byDate = {};
-    filtered.forEach(r=>{
-      if(!byDate[r.date]) byDate[r.date] = [];
-      byDate[r.date].push(r.employee);
-    });
-    box.innerHTML = Object.keys(byDate).sort().map(date=>{
-      const wd = WD[new Date(date+'T00:00:00').getDay()];
-      const chips = byDate[date].map(n=>`<span class="chip">${escapeHtml(n)}</span>`).join('');
-      return `<div class="overview-group">
-        <div class="overview-date"><span class="d">${date}</span><span class="w">星期${wd}</span></div>
-        <div class="overview-chips">${chips}</div>
-      </div>`;
-    }).join('');
   }
 
   // ---------- report ----------
