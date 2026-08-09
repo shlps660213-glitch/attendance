@@ -1,0 +1,38 @@
+name: Firestore Daily Backup
+
+on:
+  schedule:
+    # 每天 UTC 17:00 執行 = 台灣時間隔天凌晨 01:00
+    - cron: '0 17 * * *'
+  workflow_dispatch: {}   # 也可以在 GitHub 網頁上手動點一次執行，方便測試
+
+permissions:
+  contents: write   # 需要寫入權限才能把備份檔 commit 回這個 repo
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install firebase-admin
+        run: npm install firebase-admin
+
+      - name: Run backup script
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/backup.js
+
+      - name: Commit and push backup file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backups/latest-backup.json
+          git diff --cached --quiet || git commit -m "自動備份 $(date -u +'%Y-%m-%d')"
+          git push
