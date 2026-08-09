@@ -6,6 +6,8 @@
 <title>時刻打卡系統</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --ink:#1c2333;
@@ -82,7 +84,7 @@
     margin-bottom:6px;font-weight:600;
   }
 
-  select, input[type=text], input[type=month]{
+  select, input[type=text], input[type=month], input[type=date], input[type=password]{
     font-family:'Noto Sans TC',sans-serif;font-size:15px;padding:9px 10px;
     border:1.5px solid var(--ink); background:#fff; color:var(--ink);width:100%;
   }
@@ -156,6 +158,33 @@
   .rec .thumb{width:34px;height:26px;object-fit:cover;border:1px solid var(--ink);margin-left:auto;}
   .empty{color:var(--graphite);font-size:13px;padding:10px 0;}
 
+  /* ---- Leave / day-off ---- */
+  .leave-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px;}
+  .leave-form .field{min-width:170px;}
+  .leave-entry{
+    display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);
+    font-size:14px;
+  }
+  .leave-entry:last-child{border-bottom:none;}
+  .leave-entry .date{font-family:'IBM Plex Mono',monospace;font-weight:600;min-width:96px;}
+  .leave-entry .wd{color:var(--graphite);font-size:12px;}
+  .leave-entry .del{
+    margin-left:auto;border:1.5px solid var(--red-deep);color:var(--red-deep);
+    background:transparent;font-size:12px;padding:4px 9px;cursor:pointer;
+  }
+  .leave-entry .del:hover{background:#f3e7e5;}
+  .overview-group{margin-bottom:4px;}
+  .overview-date{
+    display:flex;align-items:baseline;gap:8px;padding:9px 0 5px;border-bottom:1px solid var(--rule);
+  }
+  .overview-date .d{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;}
+  .overview-date .w{font-size:12px;color:var(--graphite);}
+  .overview-chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 12px;}
+  .chip{
+    font-size:13px;padding:4px 10px;border:1.5px solid var(--teal-deep);color:var(--teal-deep);
+    background:#eef5f2;
+  }
+
   /* ---- Report ---- */
   .report-controls{
     display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;
@@ -200,7 +229,14 @@
 </style>
 </head>
 <body>
-<div class="app">
+
+<div id="configWarning" style="display:none;max-width:560px;margin:60px auto;padding:28px;background:#fbf9f3;border:2px solid #a83a3a;font-family:'Noto Sans TC',sans-serif;color:#1c2333;line-height:1.8;">
+  <h2 style="margin-top:0;color:#a83a3a;">⚠️ 尚未設定 Firebase</h2>
+  <p>這個檔案還沒有連上你自己的資料庫，所以無法儲存員工、打卡紀錄與照片。</p>
+  <p>請打開這個 HTML 檔案，找到 <code>firebaseConfig</code> 區塊，把你自己 Firebase 專案的設定值貼進去取代 <code>YOUR_API_KEY</code> 等預留文字，存檔後重新整理頁面即可。</p>
+</div>
+
+<div class="app" id="appRoot" style="display:none;">
 
   <div class="masthead">
     <h1>⏱ 時刻打卡系統</h1>
@@ -209,6 +245,7 @@
 
   <div class="tabs">
     <div class="tab active" data-tab="punch">打卡</div>
+    <div class="tab" data-tab="leave">排休</div>
     <div class="tab" data-tab="report">月報表</div>
   </div>
 
@@ -245,6 +282,42 @@
     <div class="timecard today-list">
       <h3 id="todayTitle">今日打卡紀錄</h3>
       <div id="todayRecs"><div class="empty">請先選擇員工</div></div>
+    </div>
+  </div>
+
+  <!-- LEAVE PANEL -->
+  <div class="panel" id="panel-leave">
+    <div class="timecard">
+      <div class="perf">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="row-label">員工</div>
+      <select id="leaveEmpSelect" style="margin-bottom:16px;"><option value="">— 請選擇員工 —</option></select>
+
+      <div class="leave-form">
+        <div class="field">
+          <label for="leaveDateInput">休假日期</label>
+          <input type="date" id="leaveDateInput">
+        </div>
+        <button class="btn primary" id="addLeaveBtn">➕ 排休</button>
+      </div>
+      <div class="status-line" id="leaveStatus"></div>
+    </div>
+
+    <div class="timecard">
+      <h3 id="myLeaveTitle" style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--graphite);margin:0 0 8px;">我的休假</h3>
+      <div id="myLeaveList"><div class="empty">請先選擇員工</div></div>
+    </div>
+
+    <div class="timecard">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <h3 style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--graphite);margin:0;">全體排休總覽</h3>
+        <div class="field" style="min-width:150px;">
+          <label for="leaveOverviewMonth">月份</label>
+          <input type="month" id="leaveOverviewMonth">
+        </div>
+      </div>
+      <div id="leaveOverview"><div class="empty">載入中…</div></div>
     </div>
   </div>
 
@@ -300,6 +373,26 @@
 
 <script>
 (function(){
+  // ====== Firebase 設定：請貼上你自己 Firebase 專案的設定值 ======
+  const firebaseConfig = {
+    apiKey: "AIzaSyBMNTyKCvyin5_mosRwRn_3TF_R-4-KOvc",
+    authDomain: "attendance-126ad.firebaseapp.com",
+    projectId: "attendance-126ad",
+    storageBucket: "attendance-126ad.firebasestorage.app",
+    messagingSenderId: "939690023009",
+    appId: "1:939690023009:web:b42d6ffb8c6e5ea72e7220"
+  };
+  // ================================================================
+
+  if(!firebaseConfig.apiKey || firebaseConfig.apiKey.indexOf('YOUR_') === 0){
+    document.getElementById('configWarning').style.display = 'block';
+    return;
+  }
+  document.getElementById('appRoot').style.display = '';
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2,'0');
 
@@ -318,30 +411,26 @@
       t.classList.add('active');
       $('panel-'+t.dataset.tab).classList.add('active');
       if(t.dataset.tab === 'report') openReportGate();
+      if(t.dataset.tab === 'leave'){ refreshMyLeaves(); refreshLeaveOverview(); }
     });
   });
-
-  // ---------- storage helpers ----------
-  async function getJSON(key, fallback){
-    try{
-      const r = await window.storage.get(key, true);
-      return r ? JSON.parse(r.value) : fallback;
-    }catch(e){ return fallback; }
-  }
-  async function setJSON(key, value){
-    try{
-      await window.storage.set(key, JSON.stringify(value), true);
-      return true;
-    }catch(e){ console.error('storage set failed', key, e); return false; }
-  }
 
   // ---------- employees ----------
   let employees = [];
   async function loadEmployees(){
-    employees = await getJSON('employees', null);
-    if(employees === null){
-      employees = ['王小明', '陳美玲', '林志豪'];
-      await setJSON('employees', employees);
+    try{
+      const snap = await db.collection('employees').get();
+      employees = snap.docs.map(d => d.data().name).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+      if(employees.length === 0){
+        const seed = ['王小明', '陳美玲', '林志豪'];
+        for(const n of seed){
+          await db.collection('employees').doc(n).set({ name:n, createdAt:new Date().toISOString() });
+        }
+        employees = seed;
+      }
+    }catch(e){
+      console.error(e);
+      alert('無法連線至資料庫，請確認 Firebase 設定與 Firestore 規則是否正確。');
     }
     renderEmployeeSelects();
   }
@@ -350,6 +439,11 @@
     $('empSelect').innerHTML = '<option value="">— 請選擇員工 —</option>' +
       employees.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
     if(employees.includes(cur)) $('empSelect').value = cur;
+
+    const curLeave = $('leaveEmpSelect').value || cur;
+    $('leaveEmpSelect').innerHTML = '<option value="">— 請選擇員工 —</option>' +
+      employees.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    if(employees.includes(curLeave)) $('leaveEmpSelect').value = curLeave;
 
     const curRep = $('repEmp').value;
     $('repEmp').innerHTML = '<option value="">全部員工</option>' +
@@ -364,17 +458,26 @@
     const name = $('newEmpName').value.trim();
     if(!name) return;
     if(employees.includes(name)){ $('newEmpName').value=''; return; }
-    employees.push(name);
-    const ok = await setJSON('employees', employees);
-    if(ok){
+    $('addEmpBtn').disabled = true;
+    try{
+      await db.collection('employees').doc(name).set({ name, createdAt:new Date().toISOString() });
+      employees.push(name);
+      employees.sort((a,b)=>a.localeCompare(b,'zh-Hant'));
       $('newEmpName').value = '';
       renderEmployeeSelects();
       $('empSelect').value = name;
       onEmployeeChange();
+    }catch(e){
+      console.error(e);
+      alert('新增員工失敗，請確認網路連線與 Firebase 設定');
     }
+    $('addEmpBtn').disabled = false;
   });
 
-  $('empSelect').addEventListener('change', onEmployeeChange);
+  $('empSelect').addEventListener('change', ()=>{
+    if($('empSelect').value) $('leaveEmpSelect').value = $('empSelect').value;
+    onEmployeeChange();
+  });
   function onEmployeeChange(){
     updateButtonsEnabled();
     refreshTodayRecords();
@@ -446,37 +549,23 @@
       return;
     }
 
-    const id = emp + '_' + now.getTime() + '_' + type;
     playStamp(type);
 
-    // Photo must save successfully before the punch counts as recorded.
-    let photoSaved = false;
     try{
-      await window.storage.set('photo:'+id, photo, true);
-      photoSaved = true;
-    }catch(e){ console.error(e); }
-
-    if(!photoSaved){
-      $('statusLine').textContent = '⚠️ 照片儲存失敗，打卡未完成，請重試';
-      $('clockInBtn').disabled = false; $('clockOutBtn').disabled = false;
-      updateButtonsEnabled();
-      return;
+      await db.collection('records').add({
+        employee: emp,
+        type: type,
+        ts: now.toISOString(),
+        photo: photo
+      });
+      $('statusLine').textContent = `已於 ${fmtHM(now)} 完成${type==='in'?'上班':'下班'}打卡（已拍照存證）`;
+    }catch(e){
+      console.error(e);
+      $('statusLine').textContent = '⚠️ 打卡失敗（無法寫入資料庫），請重試';
     }
-
-    const record = { id, employee: emp, type, ts: now.toISOString() };
-    const records = await getJSON('attendance-records', []);
-    records.push(record);
-    const ok = await setJSON('attendance-records', records);
 
     $('clockInBtn').disabled = false; $('clockOutBtn').disabled = false;
     updateButtonsEnabled();
-
-    if(ok){
-      $('statusLine').textContent = `已於 ${fmtHM(now)} 完成${type==='in'?'上班':'下班'}打卡（已拍照存證）`;
-    }else{
-      try{ await window.storage.delete('photo:'+id, true); }catch(e){}
-      $('statusLine').textContent = '打卡失敗，請重試';
-    }
     refreshTodayRecords();
   }
   $('clockInBtn').addEventListener('click', ()=>punch('in'));
@@ -488,21 +577,144 @@
     $('todayTitle').textContent = emp ? `今日打卡紀錄 — ${emp}` : '今日打卡紀錄';
     if(!emp){ box.innerHTML = '<div class="empty">請先選擇員工</div>'; return; }
     box.innerHTML = '<div class="empty">載入中…</div>';
-    const records = await getJSON('attendance-records', []);
+
+    let records = [];
+    try{
+      const snap = await db.collection('records').where('employee','==',emp).get();
+      records = snap.docs.map(d => d.data());
+    }catch(e){
+      console.error(e);
+      box.innerHTML = '<div class="empty">讀取失敗，請確認網路連線</div>';
+      return;
+    }
+
     const today = fmtDate(new Date());
-    const todays = records.filter(r => r.employee === emp && fmtDate(new Date(r.ts)) === today)
+    const todays = records.filter(r => fmtDate(new Date(r.ts)) === today)
                            .sort((a,b)=> new Date(a.ts)-new Date(b.ts));
     if(todays.length === 0){ box.innerHTML = '<div class="empty">今天尚無打卡紀錄</div>'; return; }
-    const rows = await Promise.all(todays.map(async r=>{
-      let thumb = '';
-      try{
-        const p = await window.storage.get('photo:'+r.id, true);
-        if(p) thumb = `<img class="thumb" src="${p.value}">`;
-      }catch(e){}
+
+    box.innerHTML = todays.map(r=>{
       const t = new Date(r.ts);
+      const thumb = r.photo ? `<img class="thumb" src="${r.photo}">` : '';
       return `<div class="rec"><span class="tag ${r.type}">${r.type==='in'?'上班':'下班'}</span><span class="time">${fmtHM(t)}</span>${thumb}</div>`;
-    }));
-    box.innerHTML = rows.join('');
+    }).join('');
+  }
+
+  // ---------- leave / day-off scheduling ----------
+  const WD = ['日','一','二','三','四','五','六'];
+
+  function initLeaveDateDefault(){
+    const now = new Date();
+    $('leaveDateInput').value = fmtDate(now);
+    $('leaveOverviewMonth').value = now.getFullYear() + '-' + pad(now.getMonth()+1);
+  }
+  initLeaveDateDefault();
+
+  $('leaveEmpSelect').addEventListener('change', ()=>{
+    if($('leaveEmpSelect').value) $('empSelect').value = $('leaveEmpSelect').value;
+    $('addLeaveBtn').disabled = !$('leaveEmpSelect').value;
+    refreshMyLeaves();
+  });
+
+  $('addLeaveBtn').addEventListener('click', async ()=>{
+    const emp = $('leaveEmpSelect').value;
+    const date = $('leaveDateInput').value;
+    if(!emp){ $('leaveStatus').textContent = '請先選擇員工'; return; }
+    if(!date){ $('leaveStatus').textContent = '請選擇日期'; return; }
+
+    $('addLeaveBtn').disabled = true;
+    $('leaveStatus').textContent = '處理中…';
+    const docId = emp + '__' + date;
+    try{
+      const existing = await db.collection('leaves').doc(docId).get();
+      if(existing.exists){
+        $('leaveStatus').textContent = `${emp} 在 ${date} 已經排休過了`;
+      }else{
+        await db.collection('leaves').doc(docId).set({ employee: emp, date, createdAt: new Date().toISOString() });
+        $('leaveStatus').textContent = `已為 ${emp} 排休 ${date}`;
+        refreshMyLeaves();
+        refreshLeaveOverview();
+      }
+    }catch(e){
+      console.error(e);
+      $('leaveStatus').textContent = '⚠️ 排休失敗，請確認網路連線';
+    }
+    $('addLeaveBtn').disabled = false;
+  });
+
+  async function refreshMyLeaves(){
+    const emp = $('leaveEmpSelect').value;
+    $('myLeaveTitle').textContent = emp ? `我的休假 — ${emp}` : '我的休假';
+    const box = $('myLeaveList');
+    if(!emp){ box.innerHTML = '<div class="empty">請先選擇員工</div>'; return; }
+    box.innerHTML = '<div class="empty">載入中…</div>';
+    let docs = [];
+    try{
+      const snap = await db.collection('leaves').where('employee','==',emp).get();
+      docs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    }catch(e){
+      console.error(e);
+      box.innerHTML = '<div class="empty">讀取失敗，請確認網路連線</div>';
+      return;
+    }
+    docs.sort((a,b)=> a.date.localeCompare(b.date));
+    if(docs.length === 0){ box.innerHTML = '<div class="empty">尚未排休</div>'; return; }
+    const today = fmtDate(new Date());
+    box.innerHTML = docs.map(r=>{
+      const wd = WD[new Date(r.date+'T00:00:00').getDay()];
+      const past = r.date < today;
+      return `<div class="leave-entry" style="${past?'opacity:.45;':''}">
+        <span class="date">${r.date}</span><span class="wd">星期${wd}</span>
+        <button class="del" data-id="${r.id}">取消</button>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.del').forEach(btn=>{
+      btn.addEventListener('click', ()=> deleteLeave(btn.dataset.id));
+    });
+  }
+
+  async function deleteLeave(id){
+    try{
+      await db.collection('leaves').doc(id).delete();
+      refreshMyLeaves();
+      refreshLeaveOverview();
+    }catch(e){
+      console.error(e);
+      alert('取消排休失敗，請確認網路連線');
+    }
+  }
+
+  $('leaveOverviewMonth').addEventListener('change', refreshLeaveOverview);
+
+  async function refreshLeaveOverview(){
+    const box = $('leaveOverview');
+    box.innerHTML = '<div class="empty">載入中…</div>';
+    const monthVal = $('leaveOverviewMonth').value;
+    let docs = [];
+    try{
+      const snap = await db.collection('leaves').get();
+      docs = snap.docs.map(d=>d.data());
+    }catch(e){
+      console.error(e);
+      box.innerHTML = '<div class="empty">讀取失敗，請確認網路連線</div>';
+      return;
+    }
+    const filtered = docs.filter(r => r.date.slice(0,7) === monthVal).sort((a,b)=> a.date.localeCompare(b.date));
+    if(filtered.length === 0){ box.innerHTML = '<div class="empty">這個月尚無人排休</div>'; return; }
+
+    const byDate = {};
+    filtered.forEach(r=>{
+      if(!byDate[r.date]) byDate[r.date] = [];
+      byDate[r.date].push(r.employee);
+    });
+    box.innerHTML = Object.keys(byDate).sort().map(date=>{
+      const wd = WD[new Date(date+'T00:00:00').getDay()];
+      const chips = byDate[date].map(n=>`<span class="chip">${escapeHtml(n)}</span>`).join('');
+      return `<div class="overview-group">
+        <div class="overview-date"><span class="d">${date}</span><span class="w">星期${wd}</span></div>
+        <div class="overview-chips">${chips}</div>
+      </div>`;
+    }).join('');
   }
 
   // ---------- report ----------
@@ -535,7 +747,16 @@
     tbody.innerHTML = '<tr><td colspan="6" class="loading">載入中…</td></tr>';
     const monthVal = $('repMonth').value; // YYYY-MM
     const empFilter = $('repEmp').value;
-    const records = await getJSON('attendance-records', []);
+
+    let records = [];
+    try{
+      const snap = await db.collection('records').get();
+      records = snap.docs.map(d => d.data());
+    }catch(e){
+      console.error(e);
+      tbody.innerHTML = '<tr><td colspan="6" class="loading">讀取失敗，請確認網路連線與 Firebase 設定</td></tr>';
+      return;
+    }
 
     const filtered = records.filter(r=>{
       const d = new Date(r.ts);
@@ -634,7 +855,16 @@
     $('gatePwConfirm').value = '';
     $('gateError').textContent = '';
 
-    const stored = await getJSON('admin-password', null);
+    let stored = null;
+    try{
+      const doc = await db.collection('settings').doc('config').get();
+      stored = doc.exists ? doc.data().adminPassword : null;
+    }catch(e){
+      console.error(e);
+      $('gateMsg').textContent = '⚠️ 無法連線至資料庫，請確認 Firebase 設定是否正確。';
+      return;
+    }
+
     if(!stored){
       gateMode = 'set';
       $('gateMsg').textContent = '第一次使用報表功能，請設定管理者密碼。之後每次查看報表都需要輸入此密碼。';
@@ -657,17 +887,26 @@
       const confirmPw = $('gatePwConfirm').value;
       if(pw.length < 4){ $('gateError').textContent = '密碼至少需 4 個字元'; return; }
       if(pw !== confirmPw){ $('gateError').textContent = '兩次輸入的密碼不一致'; return; }
-      const ok = await setJSON('admin-password', pw);
-      if(ok){
+      try{
+        await db.collection('settings').doc('config').set({ adminPassword: pw }, { merge:true });
         reportUnlocked = true;
         $('reportGate').style.display = 'none';
         $('reportContent').style.display = 'block';
         loadReport();
-      }else{
+      }catch(e){
+        console.error(e);
         $('gateError').textContent = '設定失敗，請重試';
       }
     }else{
-      const stored = await getJSON('admin-password', null);
+      let stored = null;
+      try{
+        const doc = await db.collection('settings').doc('config').get();
+        stored = doc.exists ? doc.data().adminPassword : null;
+      }catch(e){
+        console.error(e);
+        $('gateError').textContent = '無法連線至資料庫';
+        return;
+      }
       if(pw === stored){
         reportUnlocked = true;
         $('reportGate').style.display = 'none';
