@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>時刻打卡系統</title>
+<title>冠通工程行 打卡系統</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -184,6 +184,15 @@
     font-size:13px;padding:4px 10px;border:1.5px solid var(--teal-deep);color:var(--teal-deep);
     background:#eef5f2;
   }
+  .emp-chip{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 6px 4px 10px;
+    border:1.5px solid var(--graphite);color:var(--graphite);background:#fff;
+  }
+  .emp-chip button{
+    border:none;background:transparent;color:var(--red-deep);cursor:pointer;
+    font-weight:700;font-size:14px;line-height:1;padding:0 2px;
+  }
+  .emp-chip button:hover{color:#7c2a2a;}
 
   /* ---- Leave calendar ---- */
   .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
@@ -263,8 +272,22 @@
 
 <div class="app" id="appRoot" style="display:none;">
 
+  <div id="pinModal" style="display:none;position:fixed;inset:0;background:rgba(28,35,51,0.55);z-index:50;align-items:center;justify-content:center;padding:16px;">
+    <div class="timecard" style="max-width:320px;width:100%;margin:0;">
+      <div class="row-label" id="pinModalTitle">輸入取消密碼</div>
+      <p id="pinModalMsg" style="font-size:13px;color:var(--graphite);margin:0 0 12px;line-height:1.6;"></p>
+      <input type="password" id="pinInput1" maxlength="4" inputmode="numeric" placeholder="4 碼數字密碼" style="margin-bottom:8px;">
+      <input type="password" id="pinInput2" maxlength="4" inputmode="numeric" placeholder="再次輸入確認" style="display:none;margin-bottom:8px;">
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
+        <button class="btn" id="pinCancelBtn">取消</button>
+        <button class="btn primary" id="pinConfirmBtn">確認</button>
+      </div>
+      <div class="status-line" id="pinError" style="text-align:left;color:var(--red-deep);"></div>
+    </div>
+  </div>
+
   <div class="masthead">
-    <h1>⏱ 時刻打卡系統</h1>
+    <h1>⏱ 冠通工程行 打卡系統</h1>
     <div class="clock mono" id="liveClock">--:--:--</div>
   </div>
 
@@ -289,6 +312,7 @@
           <button class="btn" id="addEmpBtn">新增</button>
         </div>
       </div>
+      <div id="empManageList" style="display:flex;flex-wrap:wrap;gap:6px;margin:-8px 0 16px;"></div>
 
       <div class="cam-wrap" id="camWrap">
         <video id="video" autoplay playsinline muted></video>
@@ -435,7 +459,7 @@
       const snap = await db.collection('employees').get();
       employees = snap.docs.map(d => d.data().name).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
       if(employees.length === 0){
-        const seed = ['王小明', '陳美玲', '林志豪'];
+        const seed = ['王玟璇', '何冠呈', '高駿傑'];
         for(const n of seed){
           await db.collection('employees').doc(n).set({ name:n, createdAt:new Date().toISOString() });
         }
@@ -462,6 +486,33 @@
     $('repEmp').innerHTML = '<option value="">全部員工</option>' +
       employees.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
     if(employees.includes(curRep)) $('repEmp').value = curRep;
+
+    renderEmpManageList();
+  }
+
+  function renderEmpManageList(){
+    const box = $('empManageList');
+    if(employees.length === 0){ box.innerHTML = ''; return; }
+    box.innerHTML = employees.map(n=>
+      `<span class="emp-chip">${escapeHtml(n)}<button data-name="${escapeHtml(n)}" title="移除員工">×</button></span>`
+    ).join('');
+    box.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=> removeEmployee(btn.dataset.name));
+    });
+  }
+
+  async function removeEmployee(name){
+    if(!confirm(`確定要移除員工「${name}」嗎？\n\n（這只會讓他從選單中消失，不會刪除他過去的打卡與排休紀錄）`)) return;
+    try{
+      await db.collection('employees').doc(name).delete();
+      employees = employees.filter(n => n !== name);
+      renderEmployeeSelects();
+      if($('empSelect').value === name){ $('empSelect').value=''; onEmployeeChange(); }
+      if($('leaveEmpSelect').value === name){ $('leaveEmpSelect').value=''; refreshMyLeaves(); renderCalendar(); }
+    }catch(e){
+      console.error(e);
+      alert('移除失敗，請確認網路連線');
+    }
   }
   function escapeHtml(s){
     return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -613,6 +664,65 @@
     }).join('');
   }
 
+  // ---------- per-employee cancel PIN ----------
+  function requestPin(employeeName){
+    return new Promise((resolve)=>{
+      const modal = $('pinModal');
+      const in1 = $('pinInput1'), in2 = $('pinInput2');
+      in1.value=''; in2.value=''; $('pinError').textContent='';
+
+      db.collection('employees').doc(employeeName).get().then(doc=>{
+        const hasPin = doc.exists && doc.data().pin;
+        modal.style.display = 'flex';
+        if(!hasPin){
+          $('pinModalTitle').textContent = '設定取消排休密碼';
+          $('pinModalMsg').textContent = `為了避免別人誤刪 ${employeeName} 的排休，第一次取消前請先設定一組 4 碼數字密碼，之後取消排休都需要輸入這組密碼。`;
+          in2.style.display = 'block';
+          in1.focus();
+        }else{
+          $('pinModalTitle').textContent = '輸入取消密碼';
+          $('pinModalMsg').textContent = `請輸入 ${employeeName} 的 4 碼取消密碼。`;
+          in2.style.display = 'none';
+          in1.focus();
+        }
+
+        function cleanup(){
+          modal.style.display = 'none';
+          $('pinConfirmBtn').removeEventListener('click', onConfirm);
+          $('pinCancelBtn').removeEventListener('click', onCancel);
+          in1.removeEventListener('keydown', onKey);
+          in2.removeEventListener('keydown', onKey);
+        }
+        function onCancel(){ cleanup(); resolve(false); }
+        async function onConfirm(){
+          const v1 = in1.value.trim();
+          if(!/^\d{4}$/.test(v1)){ $('pinError').textContent = '請輸入 4 碼數字'; return; }
+          if(!hasPin){
+            const v2 = in2.value.trim();
+            if(v1 !== v2){ $('pinError').textContent = '兩次輸入不一致'; return; }
+            try{
+              await db.collection('employees').doc(employeeName).set({ pin: v1 }, { merge:true });
+              cleanup(); resolve(true);
+            }catch(e){ console.error(e); $('pinError').textContent = '設定失敗，請重試'; }
+          }else{
+            const stored = doc.data().pin;
+            if(v1 === stored){ cleanup(); resolve(true); }
+            else{ $('pinError').textContent = '密碼錯誤'; in1.value=''; in1.focus(); }
+          }
+        }
+        function onKey(e){ if(e.key === 'Enter') onConfirm(); }
+        $('pinConfirmBtn').addEventListener('click', onConfirm);
+        $('pinCancelBtn').addEventListener('click', onCancel);
+        in1.addEventListener('keydown', onKey);
+        in2.addEventListener('keydown', onKey);
+      }).catch(e=>{
+        console.error(e);
+        alert('無法連線至資料庫，請確認網路連線');
+        resolve(false);
+      });
+    });
+  }
+
   // ---------- leave / day-off scheduling (calendar) ----------
   const WD = ['日','一','二','三','四','五','六'];
   let calYear, calMonth; // calMonth 0-indexed
@@ -699,13 +809,16 @@
     if(!emp){ $('leaveStatus').textContent = '⚠️ 請先選擇員工，再點日期排休'; return; }
 
     const docId = emp + '__' + dateStr;
-    $('leaveStatus').textContent = '處理中…';
     try{
       const existing = await db.collection('leaves').doc(docId).get();
       if(existing.exists){
+        const ok = await requestPin(emp);
+        if(!ok) return;
+        $('leaveStatus').textContent = '處理中…';
         await db.collection('leaves').doc(docId).delete();
         $('leaveStatus').textContent = `已取消 ${emp} 在 ${dateStr} 的排休`;
       }else{
+        $('leaveStatus').textContent = '處理中…';
         await db.collection('leaves').doc(docId).set({ employee: emp, date: dateStr, createdAt: new Date().toISOString() });
         $('leaveStatus').textContent = `已為 ${emp} 排休 ${dateStr}`;
       }
@@ -749,6 +862,9 @@
   }
 
   async function deleteLeave(id){
+    const emp = $('leaveEmpSelect').value;
+    const ok = await requestPin(emp);
+    if(!ok) return;
     try{
       await db.collection('leaves').doc(id).delete();
       refreshMyLeaves();
