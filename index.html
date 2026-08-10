@@ -495,6 +495,16 @@
     const p = tpParts(date);
     return p.hour*60 + p.minute + p.second/60;
   }
+
+  // Some records were punched before the switch to Firebase server-time
+  // (ts stored as a plain ISO string back then). Handle both formats so old
+  // records don't silently break newer code that expects a Firestore Timestamp.
+  function tsToDate(ts){
+    if(!ts) return null;
+    if(typeof ts.toDate === 'function') return ts.toDate(); // Firestore Timestamp
+    const d = new Date(ts); // legacy ISO string
+    return isNaN(d.getTime()) ? null : d;
+  }
   function tpYearMonth(date){
     const p = tpParts(date);
     return p.year + '-' + pad(p.month);
@@ -690,7 +700,7 @@
         photo: photo
       });
       const saved = await docRef.get();
-      const serverTs = saved.data().ts ? saved.data().ts.toDate() : now;
+      const serverTs = tsToDate(saved.data().ts) || now;
       $('statusLine').textContent = `已於 ${fmtHM(serverTs)} 完成${type==='in'?'上班':'下班'}打卡（已拍照存證，時間以伺服器時間為準）`;
     }catch(e){
       console.error(e);
@@ -722,12 +732,14 @@
     }
 
     const today = fmtDate(new Date());
-    const todays = records.filter(r => r.ts && fmtDate(r.ts.toDate()) === today)
-                           .sort((a,b)=> a.ts.toDate()-b.ts.toDate());
+    const todays = records
+      .map(r => ({ ...r, _d: tsToDate(r.ts) }))
+      .filter(r => r._d && fmtDate(r._d) === today)
+      .sort((a,b)=> a._d - b._d);
     if(todays.length === 0){ box.innerHTML = '<div class="empty">今天尚無打卡紀錄</div>'; return; }
 
     box.innerHTML = todays.map(r=>{
-      const t = r.ts.toDate();
+      const t = r._d;
       const thumb = r.photo ? `<img class="thumb" src="${r.photo}">` : '';
       return `<div class="rec"><span class="tag ${r.type}">${r.type==='in'?'上班':'下班'}</span><span class="time">${fmtHM(t)}</span>${thumb}</div>`;
     }).join('');
@@ -1110,7 +1122,9 @@
     let records = [];
     try{
       const snap = await db.collection('records').get();
-      records = snap.docs.map(d => d.data()).filter(r => r.ts); // skip any not-yet-resolved pending writes
+      records = snap.docs.map(d => d.data())
+        .map(r => ({ ...r, _d: tsToDate(r.ts) }))
+        .filter(r => r._d); // skip anything with no readable timestamp
     }catch(e){
       console.error(e);
       tbody.innerHTML = '<tr><td colspan="8" class="loading">讀取失敗，請確認網路連線與 Firebase 設定</td></tr>';
@@ -1118,8 +1132,7 @@
     }
 
     const filtered = records.filter(r=>{
-      const d = r.ts.toDate();
-      const mv = tpYearMonth(d);
+      const mv = tpYearMonth(r._d);
       if(mv !== monthVal) return false;
       if(empFilter && r.employee !== empFilter) return false;
       return true;
@@ -1128,7 +1141,7 @@
     // group by employee|date
     const groups = {};
     filtered.forEach(r=>{
-      const d = r.ts.toDate();
+      const d = r._d;
       const dateStr = fmtDate(d);
       const key = r.employee + '|' + dateStr;
       if(!groups[key]) groups[key] = { employee:r.employee, date:dateStr, ins:[], outs:[] };
@@ -1377,10 +1390,12 @@
   }
 
   async function cleanupOldPhotos(allDocs, todayOnly){
-    const stale = allDocs.filter(d=>{
-      const data = d.data();
-      if(!data.photo || !data.ts) return false;
-      const recMonth = tpYearMonth(data.ts.toDate());
+    const stale = allDocs.filter(doc=>{
+      const data = doc.data();
+      if(!data.photo) return false;
+      const d = tsToDate(data.ts);
+      if(!d) return false;
+      const recMonth = tpYearMonth(d);
       return photoDeletionDateFor(recMonth) <= todayOnly;
     });
     if(stale.length === 0) return;
@@ -1389,10 +1404,11 @@
   }
 
   async function cleanupOldYearRecords(allDocs, todayOnly){
-    const stale = allDocs.filter(d=>{
-      const data = d.data();
-      if(!data.ts) return false;
-      const recYear = tpParts(data.ts.toDate()).year;
+    const stale = allDocs.filter(doc=>{
+      const data = doc.data();
+      const d = tsToDate(data.ts);
+      if(!d) return false;
+      const recYear = tpParts(d).year;
       return recordDeletionDateFor(recYear) <= todayOnly;
     });
     if(stale.length === 0) return;
