@@ -22,7 +22,7 @@ jobs:
           node-version: '22'
 
       - name: Install firebase-admin
-        run: npm install firebase-admin
+        run: npm install firebase-admin@13
 
       - name: Run backup script
         env:
