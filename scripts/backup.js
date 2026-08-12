@@ -1,7 +1,8 @@
 // 冠通工程行打卡系統 — Firestore 每日自動備份腳本
 // 由 .github/workflows/backup.yml 排程執行，不需要手動跑
 
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
 
@@ -19,11 +20,10 @@ try {
   process.exit(1);
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+const app = initializeApp({
+  credential: cert(serviceAccount),
 });
-
-const db = admin.firestore();
+const db = getFirestore(app);
 
 const COLLECTIONS = ['employees', 'records', 'leaves', 'settings'];
 
@@ -37,7 +37,7 @@ function serializeValue(v) {
 function serializeDoc(data) {
   const out = {};
   for (const key of Object.keys(data)) {
-    if (key === 'photo') continue; // 刻意跳過照片欄位，減少備份檔案大小
+    if (key === 'photo') continue;
     out[key] = serializeValue(data[key]);
   }
   return out;
