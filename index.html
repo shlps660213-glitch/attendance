@@ -292,6 +292,21 @@
     <div class="clock mono" id="liveClock">--:--:--</div>
   </div>
 
+  <div class="timecard" id="loginBar" style="margin-bottom:18px;">
+    <div id="loginFormRow" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="field" style="flex:1;min-width:180px;">
+        <label for="loginEmpSelect">我是</label>
+        <select id="loginEmpSelect"><option value="">— 請選擇員工 —</option></select>
+      </div>
+      <button class="btn primary" id="loginBtn">登入</button>
+    </div>
+    <div id="loggedInRow" style="display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="font-size:14px;">目前登入：<strong id="loggedInName"></strong></div>
+      <button class="btn" id="logoutBtn">登出</button>
+    </div>
+    <div class="status-line" id="loginStatus" style="text-align:left;"></div>
+  </div>
+
   <div class="tabs">
     <div class="tab active" data-tab="punch">打卡</div>
     <div class="tab" data-tab="leave">排休</div>
@@ -304,11 +319,6 @@
     <div class="timecard">
       <div class="perf">
         <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-      </div>
-
-      <div class="row-label">員工</div>
-      <div class="employee-row">
-        <select id="empSelect"><option value="">— 請選擇員工 —</option></select>
       </div>
 
       <div class="cam-wrap" id="camWrap">
@@ -327,7 +337,7 @@
 
     <div class="timecard today-list">
       <h3 id="todayTitle">今日打卡紀錄</h3>
-      <div id="todayRecs"><div class="empty">請先選擇員工</div></div>
+      <div id="todayRecs"><div class="empty">請先登入</div></div>
     </div>
   </div>
 
@@ -337,9 +347,6 @@
       <div class="perf">
         <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
       </div>
-      <div class="row-label">員工</div>
-      <select id="leaveEmpSelect" style="margin-bottom:16px;"><option value="">— 請選擇員工 —</option></select>
-
       <div class="cal-nav">
         <button class="btn" id="calPrev">◀</button>
         <div class="label mono" id="calLabel">2026年8月</div>
@@ -352,7 +359,7 @@
 
     <div class="timecard">
       <h3 id="myLeaveTitle" style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--graphite);margin:0 0 8px;">我的休假</h3>
-      <div id="myLeaveList"><div class="empty">請先選擇員工</div></div>
+      <div id="myLeaveList"><div class="empty">請先登入</div></div>
     </div>
   </div>
 
@@ -526,6 +533,7 @@
       $('panel-'+t.dataset.tab).classList.add('active');
       if(t.dataset.tab === 'report') openReportGate();
       if(t.dataset.tab === 'leave'){ refreshMyLeaves(); renderCalendar(); }
+      if(t.dataset.tab === 'punch'){ refreshTodayRecords(); }
     });
   });
 
@@ -549,15 +557,10 @@
     renderEmployeeSelects();
   }
   function renderEmployeeSelects(){
-    const cur = $('empSelect').value;
-    $('empSelect').innerHTML = '<option value="">— 請選擇員工 —</option>' +
+    const curLogin = $('loginEmpSelect').value;
+    $('loginEmpSelect').innerHTML = '<option value="">— 請選擇員工 —</option>' +
       employees.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
-    if(employees.includes(cur)) $('empSelect').value = cur;
-
-    const curLeave = $('leaveEmpSelect').value || cur;
-    $('leaveEmpSelect').innerHTML = '<option value="">— 請選擇員工 —</option>' +
-      employees.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
-    if(employees.includes(curLeave)) $('leaveEmpSelect').value = curLeave;
+    if(employees.includes(curLogin)) $('loginEmpSelect').value = curLogin;
 
     const curRep = $('repEmp').value;
     $('repEmp').innerHTML = '<option value="">全部員工</option>' +
@@ -584,8 +587,11 @@
       await db.collection('employees').doc(name).delete();
       employees = employees.filter(n => n !== name);
       renderEmployeeSelects();
-      if($('empSelect').value === name){ $('empSelect').value=''; onEmployeeChange(); }
-      if($('leaveEmpSelect').value === name){ $('leaveEmpSelect').value=''; refreshMyLeaves(); renderCalendar(); }
+      if(currentUser === name){
+        currentUser = null;
+        try{ localStorage.removeItem('gt_currentUser'); }catch(e){}
+        updateLoginUI();
+      }
     }catch(e){
       console.error(e);
       alert('移除失敗，請確認網路連線');
@@ -606,8 +612,6 @@
       employees.sort((a,b)=>a.localeCompare(b,'zh-Hant'));
       $('newEmpName').value = '';
       renderEmployeeSelects();
-      $('empSelect').value = name;
-      onEmployeeChange();
     }catch(e){
       console.error(e);
       alert('新增員工失敗，請確認網路連線與 Firebase 設定');
@@ -615,17 +619,48 @@
     $('addEmpBtn').disabled = false;
   });
 
-  $('empSelect').addEventListener('change', ()=>{
-    if($('empSelect').value) $('leaveEmpSelect').value = $('empSelect').value;
-    onEmployeeChange();
-  });
-  function onEmployeeChange(){
+  // ---------- login (identity for punch & leave) ----------
+  let currentUser = null;
+  try{ currentUser = localStorage.getItem('gt_currentUser') || null; }catch(e){ currentUser = null; }
+
+  function updateLoginUI(){
+    const loggedIn = !!currentUser;
+    $('loginFormRow').style.display = loggedIn ? 'none' : 'flex';
+    $('loggedInRow').style.display = loggedIn ? 'flex' : 'none';
+    if(loggedIn) $('loggedInName').textContent = currentUser;
     updateButtonsEnabled();
     refreshTodayRecords();
+    if($('panel-leave').classList.contains('active')){
+      refreshMyLeaves();
+      renderCalendar();
+    }
   }
 
+  $('loginBtn').addEventListener('click', async ()=>{
+    const name = $('loginEmpSelect').value;
+    if(!name){ $('loginStatus').textContent = '請先選擇員工'; return; }
+    $('loginBtn').disabled = true;
+    const ok = await requestPin(name);
+    $('loginBtn').disabled = false;
+    if(ok){
+      currentUser = name;
+      try{ localStorage.setItem('gt_currentUser', name); }catch(e){}
+      $('loginStatus').textContent = '';
+      updateLoginUI();
+    }else{
+      $('loginStatus').textContent = '尚未登入';
+    }
+  });
+
+  $('logoutBtn').addEventListener('click', ()=>{
+    currentUser = null;
+    try{ localStorage.removeItem('gt_currentUser'); }catch(e){}
+    $('loginEmpSelect').value = '';
+    updateLoginUI();
+  });
+
   function updateButtonsEnabled(){
-    const has = !!$('empSelect').value;
+    const has = !!currentUser;
     const camOk = !!window.__camReady;
     $('clockInBtn').disabled = !(has && camOk);
     $('clockOutBtn').disabled = !(has && camOk);
@@ -670,7 +705,7 @@
   }
 
   async function punch(type){
-    const emp = $('empSelect').value;
+    const emp = currentUser;
     if(!emp) return;
 
     if(!window.__camReady){
@@ -715,10 +750,10 @@
   $('clockOutBtn').addEventListener('click', ()=>punch('out'));
 
   async function refreshTodayRecords(){
-    const emp = $('empSelect').value;
+    const emp = currentUser;
     const box = $('todayRecs');
     $('todayTitle').textContent = emp ? `今日打卡紀錄 — ${emp}` : '今日打卡紀錄';
-    if(!emp){ box.innerHTML = '<div class="empty">請先選擇員工</div>'; return; }
+    if(!emp){ box.innerHTML = '<div class="empty">請先登入</div>'; return; }
     box.innerHTML = '<div class="empty">載入中…</div>';
 
     let records = [];
@@ -756,13 +791,13 @@
         const hasPin = doc.exists && doc.data().pin;
         modal.style.display = 'flex';
         if(!hasPin){
-          $('pinModalTitle').textContent = '設定取消排休密碼';
-          $('pinModalMsg').textContent = `為了避免別人誤刪 ${employeeName} 的排休，第一次取消前請先設定一組 4 碼數字密碼，之後取消排休都需要輸入這組密碼。`;
+          $('pinModalTitle').textContent = '設定你的密碼';
+          $('pinModalMsg').textContent = `這是 ${employeeName} 第一次使用，請設定一組 4 碼數字密碼。之後登入、取消排休都會用到這組密碼，請自己記好。`;
           in2.style.display = 'block';
           in1.focus();
         }else{
-          $('pinModalTitle').textContent = '輸入取消密碼';
-          $('pinModalMsg').textContent = `請輸入 ${employeeName} 的 4 碼取消密碼。`;
+          $('pinModalTitle').textContent = '輸入密碼';
+          $('pinModalMsg').textContent = `請輸入 ${employeeName} 的 4 碼密碼。`;
           in2.style.display = 'none';
           in1.focus();
         }
@@ -816,12 +851,6 @@
     calMonth = p.month - 1;
   })();
 
-  $('leaveEmpSelect').addEventListener('change', ()=>{
-    if($('leaveEmpSelect').value) $('empSelect').value = $('leaveEmpSelect').value;
-    refreshMyLeaves();
-    renderCalendar();
-  });
-
   $('calPrev').addEventListener('click', ()=>{
     calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; }
     renderCalendar();
@@ -864,7 +893,7 @@
     const firstDow = new Date(calYear, calMonth, 1).getDay();
     const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
     const todayStr = fmtDate(new Date());
-    const me = $('leaveEmpSelect').value;
+    const me = currentUser;
 
     const myCountThisMonth = leaves.filter(r => r.date.slice(0,7) === monthStr && r.employee === me).length;
     const quotaBox = $('leaveQuotaInfo');
@@ -898,15 +927,14 @@
   }
 
   async function toggleLeave(dateStr){
-    const emp = $('leaveEmpSelect').value;
-    if(!emp){ $('leaveStatus').textContent = '⚠️ 請先選擇員工，再點日期排休'; return; }
+    const emp = currentUser;
+    if(!emp){ $('leaveStatus').textContent = '⚠️ 請先登入，再點日期排休'; return; }
 
     const docId = emp + '__' + dateStr;
     try{
       const existing = await db.collection('leaves').doc(docId).get();
       if(existing.exists){
-        const ok = await requestPin(emp);
-        if(!ok) return;
+        if(!confirm(`確定要取消 ${dateStr} 的排休嗎？`)) return;
         $('leaveStatus').textContent = '處理中…';
         await db.collection('leaves').doc(docId).delete();
         $('leaveStatus').textContent = `已取消 ${emp} 在 ${dateStr} 的排休`;
@@ -930,10 +958,10 @@
   }
 
   async function refreshMyLeaves(){
-    const emp = $('leaveEmpSelect').value;
+    const emp = currentUser;
     $('myLeaveTitle').textContent = emp ? `我的休假 — ${emp}` : '我的休假';
     const box = $('myLeaveList');
-    if(!emp){ box.innerHTML = '<div class="empty">請先選擇員工</div>'; return; }
+    if(!emp){ box.innerHTML = '<div class="empty">請先登入</div>'; return; }
     box.innerHTML = '<div class="empty">載入中…</div>';
     let docs = [];
     try{
@@ -961,9 +989,7 @@
   }
 
   async function deleteLeave(id){
-    const emp = $('leaveEmpSelect').value;
-    const ok = await requestPin(emp);
-    if(!ok) return;
+    if(!confirm('確定要取消這筆排休嗎？')) return;
     try{
       await db.collection('leaves').doc(id).delete();
       refreshMyLeaves();
@@ -1438,7 +1464,7 @@
   }
 
   // ---------- init ----------
-  loadEmployees().then(()=>{ refreshTodayRecords(); });
+  loadEmployees().then(()=>{ updateLoginUI(); });
   runScheduledCleanup();
 
 })();
