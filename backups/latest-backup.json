@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-12T17:51:31.646Z",
+  "exportedAt": "2026-08-13T17:49:50.375Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -28,7 +28,38 @@
         "pin": "0805"
       }
     ],
-    "records": [],
+    "records": [
+      {
+        "id": "2ytOpe9YSprVRlJkAEm7",
+        "employee": "林孟杰",
+        "type": "out",
+        "ts": "2026-08-13T09:02:55.490Z"
+      },
+      {
+        "id": "J04Q7kv4ItEhMQHQXTEA",
+        "employee": "翁晟翔",
+        "type": "out",
+        "ts": "2026-08-13T09:03:49.150Z"
+      },
+      {
+        "id": "KFwGxSAgV72ik4Wh5DDj",
+        "employee": "高駿傑",
+        "type": "in",
+        "ts": "2026-08-13T00:12:17.150Z"
+      },
+      {
+        "id": "j0tNV4gOFbwfHw6C1OlD",
+        "employee": "林孟杰",
+        "type": "in",
+        "ts": "2026-08-13T00:05:38.083Z"
+      },
+      {
+        "id": "t3eDdvaqKprhN74kLs2g",
+        "employee": "翁晟翔",
+        "type": "in",
+        "ts": "2026-08-13T00:09:28.018Z"
+      }
+    ],
     "leaves": [
       {
         "id": "何冠呈__2026-08-10",
