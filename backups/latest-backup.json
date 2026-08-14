@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-13T17:49:50.375Z",
+  "exportedAt": "2026-08-14T17:44:09.632Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -36,6 +36,18 @@
         "ts": "2026-08-13T09:02:55.490Z"
       },
       {
+        "id": "64JF2VewQpcfPlJUnMEh",
+        "employee": "高駿傑",
+        "type": "out",
+        "ts": "2026-08-14T13:14:42.584Z"
+      },
+      {
+        "id": "CLTOKHxRqZNeAQgbJeu0",
+        "employee": "翁晟翔",
+        "type": "in",
+        "ts": "2026-08-14T00:12:00.625Z"
+      },
+      {
         "id": "J04Q7kv4ItEhMQHQXTEA",
         "employee": "翁晟翔",
         "type": "out",
@@ -48,10 +60,34 @@
         "ts": "2026-08-13T00:12:17.150Z"
       },
       {
+        "id": "KueXmUMncoFKyBMvlfeK",
+        "employee": "林孟杰",
+        "type": "out",
+        "ts": "2026-08-14T13:47:04.179Z"
+      },
+      {
+        "id": "MG28aXrnYYYU6deU3bvL",
+        "employee": "林孟杰",
+        "type": "in",
+        "ts": "2026-08-14T00:04:03.745Z"
+      },
+      {
+        "id": "gMOl153CBq63ac9GAOoi",
+        "employee": "高駿傑",
+        "type": "in",
+        "ts": "2026-08-13T23:50:46.468Z"
+      },
+      {
         "id": "j0tNV4gOFbwfHw6C1OlD",
         "employee": "林孟杰",
         "type": "in",
         "ts": "2026-08-13T00:05:38.083Z"
+      },
+      {
+        "id": "p2jkxQBfSD8iU1jdty84",
+        "employee": "翁晟翔",
+        "type": "out",
+        "ts": "2026-08-14T13:46:42.650Z"
       },
       {
         "id": "t3eDdvaqKprhN74kLs2g",
@@ -143,11 +179,12 @@
     "settings": [
       {
         "id": "config",
-        "adminPassword": "cchh95293189"
+        "adminPassword": "cchh95293189",
+        "accountingPassword": "95293189"
       },
       {
         "id": "meta",
-        "lastCleanup": "2026-08-12T14:54:30.031Z"
+        "lastCleanup": "2026-08-13T17:51:21.796Z"
       }
     ]
   }
