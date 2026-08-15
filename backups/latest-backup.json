@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-14T17:44:09.632Z",
+  "exportedAt": "2026-08-15T17:12:11.494Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -70,6 +70,18 @@
         "employee": "林孟杰",
         "type": "in",
         "ts": "2026-08-14T00:04:03.745Z"
+      },
+      {
+        "id": "MedAAFMTVVKWaRLXJi7X",
+        "employee": "翁晟翔",
+        "type": "out",
+        "ts": "2026-08-15T10:47:40.490Z"
+      },
+      {
+        "id": "NHtuzpEbe4QhCebJvlCX",
+        "employee": "翁晟翔",
+        "type": "in",
+        "ts": "2026-08-15T00:00:08.008Z"
       },
       {
         "id": "gMOl153CBq63ac9GAOoi",
@@ -184,7 +196,7 @@
       },
       {
         "id": "meta",
-        "lastCleanup": "2026-08-13T17:51:21.796Z"
+        "lastCleanup": "2026-08-14T23:16:42.344Z"
       }
     ]
   }
