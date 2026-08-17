@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-16T17:11:35.333Z",
+  "exportedAt": "2026-08-17T17:17:54.511Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -8,6 +8,11 @@
         "name": "何冠呈",
         "createdAt": "2026-08-09T16:07:47.034Z",
         "pin": "3241"
+      },
+      {
+        "id": "李彥緯",
+        "name": "李彥緯",
+        "createdAt": "2026-08-17T15:11:45.357Z"
       },
       {
         "id": "林孟杰",
@@ -20,6 +25,21 @@
         "name": "翁晟翔",
         "createdAt": "2026-08-12T14:55:02.700Z",
         "pin": "1209"
+      },
+      {
+        "id": "許仁濠",
+        "name": "許仁濠",
+        "createdAt": "2026-08-17T15:11:52.325Z"
+      },
+      {
+        "id": "許泊威",
+        "name": "許泊威",
+        "createdAt": "2026-08-17T15:12:03.064Z"
+      },
+      {
+        "id": "邱連生",
+        "name": "邱連生",
+        "createdAt": "2026-08-17T15:11:57.690Z"
       },
       {
         "id": "高駿傑",
@@ -48,10 +68,22 @@
         "ts": "2026-08-16T00:00:03.335Z"
       },
       {
+        "id": "5odTbeRoXqR2RcWDViu1",
+        "employee": "林孟杰",
+        "type": "in",
+        "ts": "2026-08-17T00:00:49.737Z"
+      },
+      {
         "id": "64JF2VewQpcfPlJUnMEh",
         "employee": "高駿傑",
         "type": "out",
         "ts": "2026-08-14T13:14:42.584Z"
+      },
+      {
+        "id": "9ToZ5v0Uq2dCq4ZS9I8v",
+        "employee": "高駿傑",
+        "type": "out",
+        "ts": "2026-08-17T12:40:04.274Z"
       },
       {
         "id": "CLTOKHxRqZNeAQgbJeu0",
@@ -114,6 +146,12 @@
         "ts": "2026-08-16T09:26:28.415Z"
       },
       {
+        "id": "evhHbdTTOg0SbrqpMkW1",
+        "employee": "翁晟翔",
+        "type": "out",
+        "ts": "2026-08-17T15:48:48.541Z"
+      },
+      {
         "id": "gMOl153CBq63ac9GAOoi",
         "employee": "高駿傑",
         "type": "in",
@@ -124,6 +162,18 @@
         "employee": "林孟杰",
         "type": "in",
         "ts": "2026-08-13T00:05:38.083Z"
+      },
+      {
+        "id": "lWn1dkeHcHFqNnXvNcc8",
+        "employee": "高駿傑",
+        "type": "in",
+        "ts": "2026-08-17T00:09:54.319Z"
+      },
+      {
+        "id": "mrgGGGAY5fNzDH7gejmU",
+        "employee": "翁晟翔",
+        "type": "in",
+        "ts": "2026-08-16T23:51:45.110Z"
       },
       {
         "id": "p2jkxQBfSD8iU1jdty84",
@@ -226,7 +276,7 @@
       },
       {
         "id": "meta",
-        "lastCleanup": "2026-08-15T23:50:12.230Z"
+        "lastCleanup": "2026-08-16T23:51:40.375Z"
       }
     ]
   }
