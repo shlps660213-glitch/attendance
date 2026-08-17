@@ -582,7 +582,7 @@
           <tbody id="reportBody"></tbody>
         </table>
       </div>
-      <p style="font-size:11px;color:var(--graphite);margin-top:8px;line-height:1.6;">計算規則：只要有打上班卡就算出勤 1 天，跟加班無關；上班卡晚於 08:00 的部分計為遲到（分鐘）。加班前卡僅開放 15:00–16:59 打卡；加班時數需要「加班前」與「加班後」兩張卡都存在才會計算，固定從 17:00 起算到加班後卡的時間，跟加班前卡的實際時間無關。只有其中一張加班卡會標示「加班卡不完整」，不計入加班時數。</p>
+      <p style="font-size:11px;color:var(--graphite);margin-top:8px;line-height:1.6;">計算規則：只要有打上班卡就算出勤 1 天，跟加班無關；上班卡晚於 08:00 的部分計為遲到（分鐘）。加班前必須先打過上班卡，且僅開放 15:00–16:59 打卡；加班時數需要「加班前」與「加班後」兩張卡都存在才會計算，固定從 17:00 起算到加班後卡的時間，跟加班前卡的實際時間無關。只有其中一張加班卡會標示「加班卡不完整」，不計入加班時數。</p>
     </div>
   </div>
 
@@ -811,6 +811,7 @@
   });
 
   let hasOtStartToday = false; // updated by refreshTodayRecords
+  let hasInToday = false; // updated by refreshTodayRecords
 
   function isWithinOvertimeStartWindow(){
     const p = tpParts(new Date());
@@ -824,11 +825,13 @@
     const otWindow = isWithinOvertimeStartWindow();
 
     $('clockInBtn').disabled = !(has && camOk);
-    $('otStartBtn').disabled = !(has && camOk && otWindow);
+    $('otStartBtn').disabled = !(has && camOk && otWindow && hasInToday);
     $('otEndBtn').disabled = !(has && camOk && hasOtStartToday);
 
     if(!has){
       $('otWindowHint').textContent = '';
+    }else if(!hasInToday && !hasOtStartToday){
+      $('otWindowHint').textContent = '今天尚未打上班卡，打過上班卡才能打加班前卡';
     }else if(!otWindow && !hasOtStartToday){
       $('otWindowHint').textContent = '加班前打卡僅開放 15:00–16:59；加班後打卡需先完成加班前打卡';
     }else if(!otWindow && hasOtStartToday){
@@ -886,6 +889,10 @@
       $('statusLine').textContent = '⚠️ 相機尚未啟用，無法打卡（本系統規定打卡必須拍照存證）';
       return;
     }
+    if(type === 'ot_start' && !hasInToday){
+      $('statusLine').textContent = '⚠️ 今天尚未打上班卡，無法打加班前卡';
+      return;
+    }
     if(type === 'ot_start' && !isWithinOvertimeStartWindow()){
       $('statusLine').textContent = '⚠️ 加班前打卡僅開放 15:00–16:59，現在不是這個時段';
       return;
@@ -934,7 +941,7 @@
     const emp = currentUser;
     const box = $('todayRecs');
     $('todayTitle').textContent = emp ? `今日打卡紀錄 — ${emp}` : '今日打卡紀錄';
-    if(!emp){ box.innerHTML = '<div class="empty">請先登入</div>'; hasOtStartToday = false; return; }
+    if(!emp){ box.innerHTML = '<div class="empty">請先登入</div>'; hasOtStartToday = false; hasInToday = false; return; }
     box.innerHTML = '<div class="empty">載入中…</div>';
 
     let records = [];
@@ -954,6 +961,7 @@
       .sort((a,b)=> b._d - a._d);
 
     hasOtStartToday = todays.some(r => r.type === 'ot_start');
+    hasInToday = todays.some(r => r.type === 'in');
     updateButtonsEnabled();
 
     if(todays.length === 0){ box.innerHTML = '<div class="empty">今天尚無打卡紀錄</div>'; return; }
