@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-18T17:18:10.942Z",
+  "exportedAt": "2026-08-19T17:17:56.484Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -93,6 +93,12 @@
         "ts": "2026-08-14T00:12:00.625Z"
       },
       {
+        "id": "Fno9MhAYK37Bo0cNVp6J",
+        "employee": "翁晟翔",
+        "type": "in",
+        "ts": "2026-08-19T00:09:45.894Z"
+      },
+      {
         "id": "FoWBOJ2UvEOuvwGiFlLX",
         "employee": "高駿傑",
         "type": "in",
@@ -151,6 +157,12 @@
         "employee": "林孟杰",
         "type": "out",
         "ts": "2026-08-16T09:26:28.415Z"
+      },
+      {
+        "id": "ZbUmNSLT1MgnUjzKdQzw",
+        "employee": "林孟杰",
+        "type": "in",
+        "ts": "2026-08-19T01:57:57.509Z"
       },
       {
         "id": "evhHbdTTOg0SbrqpMkW1",
@@ -302,12 +314,12 @@
     "settings": [
       {
         "id": "config",
-        "adminPassword": "cchh95293189",
-        "accountingPassword": "95293189"
+        "accountingPassword": "95293189",
+        "adminPassword": "aaa987"
       },
       {
         "id": "meta",
-        "lastCleanup": "2026-08-18T00:13:36.217Z"
+        "lastCleanup": "2026-08-19T00:47:28.608Z"
       }
     ]
   }
