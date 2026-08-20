@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-19T17:17:56.484Z",
+  "exportedAt": "2026-08-20T17:19:06.603Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -12,7 +12,8 @@
       {
         "id": "李彥緯",
         "name": "李彥緯",
-        "createdAt": "2026-08-17T15:11:45.357Z"
+        "createdAt": "2026-08-17T15:11:45.357Z",
+        "pin": "5492"
       },
       {
         "id": "林孟杰",
@@ -29,7 +30,8 @@
       {
         "id": "許仁濠",
         "name": "許仁濠",
-        "createdAt": "2026-08-17T15:11:52.325Z"
+        "createdAt": "2026-08-17T15:11:52.325Z",
+        "pin": "1125"
       },
       {
         "id": "許泊威",
@@ -81,10 +83,22 @@
         "ts": "2026-08-14T13:14:42.584Z"
       },
       {
+        "id": "8ULza6nT8I9BwesnbfDH",
+        "employee": "高駿傑",
+        "type": "in",
+        "ts": "2026-08-20T00:05:09.971Z"
+      },
+      {
         "id": "9ToZ5v0Uq2dCq4ZS9I8v",
         "employee": "高駿傑",
         "type": "out",
         "ts": "2026-08-17T12:40:04.274Z"
+      },
+      {
+        "id": "9XSh79pM146knglw3J1Q",
+        "employee": "李彥緯",
+        "type": "ot_end",
+        "ts": "2026-08-20T12:28:33.882Z"
       },
       {
         "id": "CLTOKHxRqZNeAQgbJeu0",
@@ -117,6 +131,12 @@
         "ts": "2026-08-13T00:12:17.150Z"
       },
       {
+        "id": "KmjoO9Tna7lM81mbKWvA",
+        "employee": "許仁濠",
+        "type": "ot_end",
+        "ts": "2026-08-20T12:28:00.905Z"
+      },
+      {
         "id": "KueXmUMncoFKyBMvlfeK",
         "employee": "林孟杰",
         "type": "out",
@@ -147,6 +167,12 @@
         "ts": "2026-08-18T00:13:44.663Z"
       },
       {
+        "id": "P2au3tRLcrFlzaUS8pD4",
+        "employee": "翁晟翔",
+        "type": "in",
+        "ts": "2026-08-19T23:48:31.832Z"
+      },
+      {
         "id": "PeeVBBsMpqwEyRLPycDc",
         "employee": "翁晟翔",
         "type": "in",
@@ -159,16 +185,64 @@
         "ts": "2026-08-16T09:26:28.415Z"
       },
       {
+        "id": "RHB9ypo0Bbs2oyKvpvCd",
+        "employee": "翁晟翔",
+        "type": "ot_end",
+        "ts": "2026-08-20T12:27:45.149Z"
+      },
+      {
+        "id": "RsEGF1G3dWLIP3QckbD9",
+        "employee": "高駿傑",
+        "type": "ot_end",
+        "ts": "2026-08-20T12:27:52.596Z"
+      },
+      {
+        "id": "W1TFYjFl5m5Mzv5WMYkO",
+        "employee": "許泊威",
+        "type": "in",
+        "ts": "2026-08-20T00:06:25.008Z"
+      },
+      {
+        "id": "WHenp6Q6hZ0jH1VBiJAM",
+        "employee": "李彥緯",
+        "type": "ot_end",
+        "ts": "2026-08-20T12:28:31.431Z"
+      },
+      {
         "id": "ZbUmNSLT1MgnUjzKdQzw",
         "employee": "林孟杰",
         "type": "in",
         "ts": "2026-08-19T01:57:57.509Z"
       },
       {
+        "id": "atzOedgavMd9dCcsxnsP",
+        "employee": "林孟杰",
+        "type": "ot_end",
+        "ts": "2026-08-20T12:25:57.133Z"
+      },
+      {
+        "id": "bxopLZEXqLryVFoh9Thk",
+        "employee": "翁晟翔",
+        "type": "ot_start",
+        "ts": "2026-08-20T08:05:23.122Z"
+      },
+      {
+        "id": "d1nulSBowuJDfveGYJLf",
+        "employee": "李彥緯",
+        "type": "ot_start",
+        "ts": "2026-08-20T08:34:21.678Z"
+      },
+      {
         "id": "evhHbdTTOg0SbrqpMkW1",
         "employee": "翁晟翔",
         "type": "out",
         "ts": "2026-08-17T15:48:48.541Z"
+      },
+      {
+        "id": "fe85PVSt0LE2Bu8noSDV",
+        "employee": "高駿傑",
+        "type": "ot_start",
+        "ts": "2026-08-20T08:08:41.738Z"
       },
       {
         "id": "gMOl153CBq63ac9GAOoi",
@@ -183,10 +257,22 @@
         "ts": "2026-08-13T00:05:38.083Z"
       },
       {
+        "id": "jtIVD2MO5nPKDykqTnS5",
+        "employee": "許仁濠",
+        "type": "in",
+        "ts": "2026-08-19T23:41:48.581Z"
+      },
+      {
         "id": "lWn1dkeHcHFqNnXvNcc8",
         "employee": "高駿傑",
         "type": "in",
         "ts": "2026-08-17T00:09:54.319Z"
+      },
+      {
+        "id": "le1QVizLVtjB84r0DHNm",
+        "employee": "許仁濠",
+        "type": "ot_start",
+        "ts": "2026-08-20T08:00:40.025Z"
       },
       {
         "id": "mrgGGGAY5fNzDH7gejmU",
@@ -195,16 +281,52 @@
         "ts": "2026-08-16T23:51:45.110Z"
       },
       {
+        "id": "nfCcK0fcbebiCLgjRIJ0",
+        "employee": "李彥緯",
+        "type": "in",
+        "ts": "2026-08-20T00:06:21.681Z"
+      },
+      {
         "id": "p2jkxQBfSD8iU1jdty84",
         "employee": "翁晟翔",
         "type": "out",
         "ts": "2026-08-14T13:46:42.650Z"
       },
       {
+        "id": "pkaEnCgaWCW0iyMQAlV3",
+        "employee": "許泊威",
+        "type": "ot_end",
+        "ts": "2026-08-20T12:27:23.116Z"
+      },
+      {
+        "id": "r25Ygnd0iByJiWaRwSZh",
+        "employee": "許泊威",
+        "type": "in",
+        "ts": "2026-08-20T00:06:15.546Z"
+      },
+      {
         "id": "t3eDdvaqKprhN74kLs2g",
         "employee": "翁晟翔",
         "type": "in",
         "ts": "2026-08-13T00:09:28.018Z"
+      },
+      {
+        "id": "xZZFiXeXmfBYUm2iTKWO",
+        "employee": "林孟杰",
+        "type": "in",
+        "ts": "2026-08-20T00:03:29.511Z"
+      },
+      {
+        "id": "yCAMmFAfADjssKtgqo7h",
+        "employee": "林孟杰",
+        "type": "ot_start",
+        "ts": "2026-08-20T08:02:07.576Z"
+      },
+      {
+        "id": "ziEsh7Z7t02xYGYyRWWe",
+        "employee": "許泊威",
+        "type": "ot_start",
+        "ts": "2026-08-20T08:01:40.963Z"
       }
     ],
     "leaves": [
@@ -275,6 +397,12 @@
         "createdAt": "2026-08-17T17:47:01.542Z"
       },
       {
+        "id": "許仁濠__2026-08-24",
+        "employee": "許仁濠",
+        "date": "2026-08-24",
+        "createdAt": "2026-08-19T23:40:00.737Z"
+      },
+      {
         "id": "許泊威__2026-08-24",
         "employee": "許泊威",
         "date": "2026-08-24",
@@ -319,7 +447,7 @@
       },
       {
         "id": "meta",
-        "lastCleanup": "2026-08-19T00:47:28.608Z"
+        "lastCleanup": "2026-08-20T00:56:03.048Z"
       }
     ]
   }
