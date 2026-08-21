@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-20T17:19:06.603Z",
+  "exportedAt": "2026-08-21T17:19:32.426Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -57,6 +57,12 @@
         "employee": "高駿傑",
         "type": "out",
         "ts": "2026-08-16T09:23:13.631Z"
+      },
+      {
+        "id": "2BHaLYtIijCWfgNMYmuL",
+        "employee": "許泊威",
+        "type": "in",
+        "ts": "2026-08-21T00:36:11.092Z"
       },
       {
         "id": "2ytOpe9YSprVRlJkAEm7",
@@ -147,6 +153,12 @@
         "employee": "林孟杰",
         "type": "in",
         "ts": "2026-08-14T00:04:03.745Z"
+      },
+      {
+        "id": "Md87SMmf20pMPhecld9T",
+        "employee": "林孟杰",
+        "type": "in",
+        "ts": "2026-08-20T23:53:22.356Z"
       },
       {
         "id": "MedAAFMTVVKWaRLXJi7X",
@@ -251,6 +263,12 @@
         "ts": "2026-08-13T23:50:46.468Z"
       },
       {
+        "id": "gQog0XCMDrySoKZDyAzN",
+        "employee": "許仁濠",
+        "type": "in",
+        "ts": "2026-08-20T23:48:59.160Z"
+      },
+      {
         "id": "j0tNV4gOFbwfHw6C1OlD",
         "employee": "林孟杰",
         "type": "in",
@@ -261,6 +279,12 @@
         "employee": "許仁濠",
         "type": "in",
         "ts": "2026-08-19T23:41:48.581Z"
+      },
+      {
+        "id": "lIUbHP0PgdBZCh3FrcZn",
+        "employee": "高駿傑",
+        "type": "in",
+        "ts": "2026-08-20T23:55:04.635Z"
       },
       {
         "id": "lWn1dkeHcHFqNnXvNcc8",
@@ -447,7 +471,7 @@
       },
       {
         "id": "meta",
-        "lastCleanup": "2026-08-20T00:56:03.048Z"
+        "lastCleanup": "2026-08-21T04:04:27.868Z"
       }
     ]
   }
