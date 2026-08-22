@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-21T17:19:32.426Z",
+  "exportedAt": "2026-08-22T17:11:32.488Z",
   "note": "此備份不含打卡照片（photo 欄位），照片有獨立的自動清除機制",
   "collections": {
     "employees": [
@@ -107,6 +107,12 @@
         "ts": "2026-08-20T12:28:33.882Z"
       },
       {
+        "id": "9m2Ti4Y8r9qy40d5uOUz",
+        "employee": "許泊威",
+        "type": "in",
+        "ts": "2026-08-21T23:52:38.395Z"
+      },
+      {
         "id": "CLTOKHxRqZNeAQgbJeu0",
         "employee": "翁晟翔",
         "type": "in",
@@ -153,6 +159,12 @@
         "employee": "林孟杰",
         "type": "in",
         "ts": "2026-08-14T00:04:03.745Z"
+      },
+      {
+        "id": "Mco1558Uh2bJtCRUch0n",
+        "employee": "許仁濠",
+        "type": "in",
+        "ts": "2026-08-21T23:46:15.078Z"
       },
       {
         "id": "Md87SMmf20pMPhecld9T",
@@ -329,6 +341,12 @@
         "ts": "2026-08-20T00:06:15.546Z"
       },
       {
+        "id": "scZzE2Tjg6fpF9y7t0bU",
+        "employee": "林孟杰",
+        "type": "in",
+        "ts": "2026-08-21T23:50:46.075Z"
+      },
+      {
         "id": "t3eDdvaqKprhN74kLs2g",
         "employee": "翁晟翔",
         "type": "in",
@@ -471,7 +489,7 @@
       },
       {
         "id": "meta",
-        "lastCleanup": "2026-08-21T04:04:27.868Z"
+        "lastCleanup": "2026-08-22T07:17:24.334Z"
       }
     ]
   }
